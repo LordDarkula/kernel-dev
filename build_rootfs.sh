@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+sudo dnf install gcc bc openssl-devel elfutils-libelf-devel ncurses-devel flex bison \
+                 dwarves perl-IPC-Cmd qemu-system-x86 qemu-img dracut cpio \
+                 busybox glibc-static
+
 # ================================
 # 1. Create directory structure
 # ================================
@@ -9,12 +13,15 @@ rm -rf rootfs
 rm -f rootfs.img
 mkdir -p rootfs/{bin,sbin,etc,proc,sys,dev,tmp}
 mkdir -p rootfs/usr/lib
+mkdir -p rootfs/{lib,lib64,usr/lib64}
 
-cd rootfs
-cp -av /usr/lib/lib[mc].so.6 usr/lib/
-cp -av /usr/lib/ld-linux.so.2 usr/lib/
-cp -av /usr/lib/ld-musl-x86_64.so.1 usr/lib/
-cd ..
+# cd rootfs
+# cp -av /usr/lib/lib[mc].so.6 usr/lib/
+# cp -av /usr/lib/ld-linux.so.2 usr/lib/
+# cp -av /usr/lib/ld-musl-x86_64.so.1 usr/lib/
+# cd ..
+
+cp -a /usr/lib64/libc.so.6 /usr/lib64/libm.so.6 /usr/lib64/libresolv.so.2 rootfs/usr/lib64/
 
 # ================================
 # 2. Download and build BusyBox
@@ -91,5 +98,5 @@ cd ..
 
 echo "[+] Done! Initramfs is rootfs.img"
 echo "[+] You can now boot it with QEMU using:"
-echo "qemu-system-x86_64 -kernel arch/x86/boot/bzImage -initrd rootfs.img -append \"console=ttyS0 rdinit=/init\" -nographic -m 512M"
+echo "qemu-system-x86_64 -kernel linux/arch/x86/boot/bzImage -initrd rootfs.img -append \"console=ttyS0\" -nographic -m 512M"
 
