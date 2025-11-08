@@ -80,6 +80,12 @@ chmod +x rootfs/init
 cp rootfs/init rootfs/sbin/
 chmod +x rootfs/sbin/init
 
+cp tinker-linux/memater rootfs/usr/bin/
+chmod +x rootfs/usr/bin/memater
+
+cp tinker-linux/setup-cgroups-root.sh rootfs/
+chmod +x rootfs/setup-cgroups-root.sh
+
 cd busybox-1.36.1
 make CONFIG_STATIC=y CONFIG_PREFIX=../rootfs install
 cd ..
