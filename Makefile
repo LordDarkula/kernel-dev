@@ -7,7 +7,7 @@ CC_VER := gcc-13.4
 JOBS := $(shell nproc)
 KERNEL_IMAGE := $(LINUX_DIR)/arch/x86/boot/bzImage
 QEMU := qemu-system-x86_64
-QEMU_MEM := 3G
+QEMU_MEM := 4G
 QEMU_CPUS := 8
 QEMU_DISK := rootfs.img
 QEMU_EXTRA := -nographic -serial mon:stdio
@@ -52,7 +52,7 @@ boot:
 		-smp $(QEMU_CPUS) \
 		-m $(QEMU_MEM) \
 		-object memory-backend-ram,id=mem0,size=2G \
-		-object memory-backend-ram,id=mem1,size=1G \
+		-object memory-backend-ram,id=mem1,size=2G \
 		-numa node,nodeid=0,memdev=mem0 \
 		-numa node,nodeid=1,memdev=mem1 \
 		-append "console=ttyS0" \
