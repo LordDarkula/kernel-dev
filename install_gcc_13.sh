@@ -4,13 +4,6 @@ set -e
 # source: https://www.if-not-true-then-false.com/2023/fedora-build-gcc/
 cd
 
-
-sudo dnf group install development-tools
-
-sudo dnf install mpfr-devel gmp-devel libmpc-devel \
-zlib-devel glibc-devel.i686 glibc-devel isl-devel \
-g++ gcc-gnat gcc-gdc libgphobos-static
-
 wget https://ftp.gwdg.de/pub/misc/gcc/releases/gcc-13.4.0/gcc-13.4.0.tar.xz \
 https://ftp.gwdg.de/pub/misc/gcc/releases/gcc-13.4.0/gcc-13.4.0.tar.xz.sig
 

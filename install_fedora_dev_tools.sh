@@ -6,3 +6,6 @@ sudo dnf install gcc bc openssl-devel elfutils-libelf-devel ncurses-devel flex b
 
 # fedora openssl split header
 sudo dnf install -y openssl-devel-engine openssl-devel
+
+# gcc 13 dependencies
+sudo dnf install mpfr-devel gmp-devel libmpc-devel \
