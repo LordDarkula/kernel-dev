@@ -10,6 +10,7 @@ rm -f rootfs.img
 mkdir -p rootfs/{bin,sbin,etc,proc,sys,dev,tmp}
 mkdir -p rootfs/usr/lib
 mkdir -p rootfs/{lib,lib64,usr/lib64}
+mkdir -p rootfs/lib/modules
 
 # cd rootfs
 # cp -av /usr/lib/lib[mc].so.6 usr/lib/
