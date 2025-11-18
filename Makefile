@@ -3,7 +3,7 @@
 
 # Variables
 LINUX_DIR := linux
-CC_VER := gcc-13.4
+CC_VER := gcc-13
 JOBS := $(shell nproc)
 KERNEL_IMAGE := $(LINUX_DIR)/arch/x86/boot/bzImage
 COLLOID_KERNEL_IMAGE := colloid/tpp/linux-6.3/arch/x86/boot/bzImage
