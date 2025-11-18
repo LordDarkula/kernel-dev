@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+set -o pipefail
 
 # ================================
 # 1. Create directory structure
@@ -12,13 +13,10 @@ mkdir -p rootfs/usr/lib
 mkdir -p rootfs/{lib,lib64,usr/lib64}
 mkdir -p rootfs/lib/modules
 
-# cd rootfs
-# cp -av /usr/lib/lib[mc].so.6 usr/lib/
-# cp -av /usr/lib/ld-linux.so.2 usr/lib/
-# cp -av /usr/lib/ld-musl-x86_64.so.1 usr/lib/
-# cd ..
-
-cp -a /usr/lib64/libc.so.6 /usr/lib64/libm.so.6 /usr/lib64/libresolv.so.2 rootfs/usr/lib64/
+cp -a /usr/lib64/libc.so.6 /usr/lib64/libm.so.6 || true
+cp -a /usr/lib64/libresolv.so.2 || true
+cp -a rootfs/usr/lib64/ || true
+cp -a /usr/lib64/ld-linux-x86-64.so.2 || true
 
 # ================================
 # 2. Download and build BusyBox
