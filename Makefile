@@ -13,10 +13,12 @@ QEMU_CPUS := 8
 QEMU_DISK := rootfs.img
 QEMU_EXTRA := -nographic -serial mon:stdio
 
-.PHONY: all config build clean
+.PHONY: all colloid config kernel fs boot clean colloid colloid_config colloid_kernel colloid_fs boot_colloid
 
 # Default target: configure then build
-all: config build_kernel
+all: config kernel fs boot
+
+colloid: colloid_config colloid_kernel colloid_fs boot_colloid
 
 # Step 1: prepare kernel configuration
 config:
@@ -25,19 +27,19 @@ config:
 	make CC=$(CC_VER) mrproper olddefconfig
 	@echo "==> Returning to parent directory."
 
-config_colloid:
+colloid_config:
 	cs colloid/tpp/linux-6.3 && \
 	make CC=$(CC_VER) olddefconfig
 	@echo "Edit .config to set -colloid option in CONFIG_LOCALVERSION"
 
 # Step 2: build kernel image and modules, stop at first fatal error
-build_kernel:
+kernel:
 	@echo "==> Building kernel with $(CC_VER)..."
 	cd $(LINUX_DIR) && \
 	make CC=$(CC_VER) -j"$(JOBS)" bzImage modules --stop
 	@echo "==> Build finished. Returned to parent directory."
 
-build_colloid:
+colloid_kernel:
 	@echo "==> Building colloid + TPP kernel with $(CC_VER)"
 	cd colloid/tpp/linux-6.3 && \
 	make CC=$(CC_VER) -j"$(JOBS)" bzImage modules --stop && \
@@ -50,8 +52,11 @@ clean:
 	make clean
 	@echo "==> Clean complete. Returned to parent directory."
 
-build_image:
+fs:
 	chmod +x build_rootfs.sh && ./build_rootfs.sh
+
+colloid_fs:
+	chmod +x build_colloid_rootfs.sh && ./build_colloid_rootfs.sh
 
 boot:
 	@echo "==> Booting kernel in QEMU..."
