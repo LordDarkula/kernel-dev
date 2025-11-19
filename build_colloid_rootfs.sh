@@ -4,17 +4,17 @@ set -e
 # ================================
 # 1. Create directory structure
 # ================================
-echo "[*] Creating rootfs directory structure..."
-rm -rf rootfs
-rm -f rootfs.img
-mkdir -p rootfs/{bin,sbin,etc,proc,sys,dev,tmp}
-mkdir -p rootfs/usr/lib
-mkdir -p rootfs/{lib,lib64,usr/lib64}
-mkdir -p rootfs/lib/modules
+echo "[*] Creating colloid_rootfs directory structure..."
+rm -rf colloid_rootfs
+rm -f colloid_rootfs.img
+mkdir -p colloid_rootfs/{bin,sbin,etc,proc,sys,dev,tmp}
+mkdir -p colloid_rootfs/usr/lib
+mkdir -p colloid_rootfs/{lib,lib64,usr/lib64}
+mkdir -p colloid_rootfs/lib/modules
 
 cp -a /usr/lib64/libc.so.6 /usr/lib64/libm.so.6 || true
 cp -a /usr/lib64/libresolv.so.2 || true
-cp -a rootfs/usr/lib64/ || true
+cp -a colloid_rootfs/usr/lib64/ || true
 cp -a /usr/lib64/ld-linux-x86-64.so.2 || true
 
 # ================================
@@ -47,8 +47,8 @@ sed -i 's/#CONFIG_STATIC is not set/CONFIG_STATIC=y/' .config
 echo "[*] Building BusyBox..."
 make CONFIG_STATIC=y -j"$(nproc)"
 
-echo "[*] Installing BusyBox into rootfs..."
-make CONFIG_STATIC=y CONFIG_PREFIX=../rootfs install
+echo "[*] Installing BusyBox into colloid_rootfs..."
+make CONFIG_STATIC=y CONFIG_PREFIX=../colloid_rootfs install
 
 
 cd ..
@@ -57,7 +57,7 @@ cd ..
 # 3. Create minimal init script
 # ================================
 echo "[*] Creating /init..."
-cat > rootfs/init << 'EOF'
+cat > colloid_rootfs/init << 'EOF'
 #!/bin/sh
 
 # Initialize system
@@ -73,35 +73,35 @@ echo "================================="
 exec /bin/sh
 EOF
 
-chmod +x rootfs/init
+chmod +x colloid_rootfs/init
 
-cp rootfs/init rootfs/sbin/
-chmod +x rootfs/sbin/init
+cp colloid_rootfs/init colloid_rootfs/sbin/
+chmod +x colloid_rootfs/sbin/init
 
-cp tinker-linux/memater rootfs/usr/bin/
-chmod +x rootfs/usr/bin/memater
+cp tinker-linux/memater colloid_rootfs/usr/bin/
+chmod +x colloid_rootfs/usr/bin/memater
 
-cp tinker-linux/setup-cgroups-root.sh rootfs/
-chmod +x rootfs/setup-cgroups-root.sh
+cp tinker-linux/setup-cgroups-root.sh colloid_rootfs/
+chmod +x colloid_rootfs/setup-cgroups-root.sh
 
-cp colloid/tpp/tierinit/tierinit.ko rootfs/lib/modules/
-chmod +x rootfs/lib/modules/tierinit.ko
-cp colloid/tpp/colloid-mon/colloid-mon.ko rootfs/lib/modules/
-chmod +x rootfs/lib/modules/colloid-mon.ko
+cp colloid/tpp/tierinit/tierinit.ko colloid_rootfs/lib/modules/
+chmod +x colloid_rootfs/lib/modules/tierinit.ko
+cp colloid/tpp/colloid-mon/colloid-mon.ko colloid_rootfs/lib/modules/
+chmod +x colloid_rootfs/lib/modules/colloid-mon.ko
 
 cd busybox-1.36.1
-make CONFIG_STATIC=y CONFIG_PREFIX=../rootfs install
+make CONFIG_STATIC=y CONFIG_PREFIX=../colloid_rootfs install
 cd ..
 
 # ================================
 # 4. Create initramfs (cpio archive)
 # ================================
-echo "[*] Creating initramfs image rootfs.img..."
-cd rootfs
-find . -print0 | cpio --null -ov --format=newc | gzip -9 > ../rootfs.img
+echo "[*] Creating initramfs image colloid_rootfs.img..."
+cd colloid_rootfs
+find . -print0 | cpio --null -ov --format=newc | gzip -9 > ../colloid_rootfs.img
 cd ..
 
-echo "[+] Done! Initramfs is rootfs.img"
+echo "[+] Done! Initramfs is colloid_rootfs.img"
 echo "[+] You can now boot it with QEMU using:"
-echo "qemu-system-x86_64 -kernel linux/arch/x86/boot/bzImage -initrd rootfs.img -append \"console=ttyS0\" -nographic -m 512M"
+echo "qemu-system-x86_64 -kernel linux/arch/x86/boot/bzImage -initrd colloid_rootfs.img -append \"console=ttyS0\" -nographic -m 512M"
 

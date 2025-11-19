@@ -11,6 +11,7 @@ QEMU := qemu-system-x86_64
 QEMU_MEM := 4G
 QEMU_CPUS := 8
 QEMU_DISK := rootfs.img
+QEMU_COLLOID_DISK := colloid_rootfs.img
 QEMU_EXTRA := -nographic -serial mon:stdio
 
 .PHONY: all colloid config kernel fs boot clean colloid colloid_config colloid_kernel colloid_fs boot_colloid
@@ -83,7 +84,7 @@ boot_colloid:
 		-cpu host \
 		-machine q35,accel=kvm \
 		-kernel $(COLLOID_KERNEL_IMAGE) \
-		-initrd $(QEMU_DISK) \
+		-initrd $(QEMU_COLLOID_DISK) \
 		-smp $(QEMU_CPUS) \
 		-m $(QEMU_MEM) \
 		-object memory-backend-ram,id=mem0,size=2G \
