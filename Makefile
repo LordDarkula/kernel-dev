@@ -28,7 +28,7 @@ config:
 	@echo "==> Returning to parent directory."
 
 colloid_config:
-	cs colloid/tpp/linux-6.3 && \
+	cd colloid/tpp/linux-6.3 && \
 	make CC=$(CC_VER) olddefconfig
 	@echo "Edit .config to set -colloid option in CONFIG_LOCALVERSION"
 
