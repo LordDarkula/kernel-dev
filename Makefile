@@ -23,14 +23,14 @@ colloid: colloid_config colloid_kernel colloid_fs boot_colloid
 
 # Step 1: prepare kernel configuration
 config:
-	@echo "==> Entering $(LINUX_DIR) to run olddefconfig..."
-	cd $(LINUX_DIR) && \
-	make CC=$(CC_VER) mrproper olddefconfig
-	@echo "==> Returning to parent directory."
+	mkdir $(LINUX_DIR)/kbuild
+	cd $(LINUX_DIR)/kbuild && \
+	make CC=$(CC_VER) -C .. O=$(pwd) mrproper olddefconfig
 
 colloid_config:
-	cd colloid/tpp/linux-6.3 && \
-	make CC=$(CC_VER) olddefconfig
+	mkdir colloid/tpp/linux-6.3/kbuild
+	cd colloid/tpp/linux-6.3/kbuild && \
+	make CC=$(CC_VER) -C .. O=$(pwd) olddefconfig
 	@echo "Edit .config to set -colloid option in CONFIG_LOCALVERSION"
 
 # Step 2: build kernel image and modules, stop at first fatal error
