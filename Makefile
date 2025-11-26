@@ -1,5 +1,5 @@
 # Makefile for building the Linux kernel with GCC 13.4
-# It enters the 'linux' directory, builds, then returns to the parent.
+
 
 # Variables
 LINUX_DIR := linux
@@ -25,12 +25,12 @@ colloid: colloid_config colloid_kernel colloid_fs boot_colloid
 config:
 	mkdir -p $(LINUX_DIR)/kbuild
 	cd $(LINUX_DIR)/kbuild && \
-	make CC=$(CC_VER) -C .. O=$(pwd) mrproper olddefconfig
+	make CC=$(CC_VER) -C .. O=$(LINUX_DIR)/kbuild mrproper olddefconfig
 
 colloid_config:
 	mkdir -p colloid/tpp/linux-6.3/kbuild
 	cd colloid/tpp/linux-6.3/kbuild && \
-	make CC=$(CC_VER) -C .. O=$(pwd) olddefconfig
+	make CC=$(CC_VER) -C .. O=colloid/tpp/linux-6.3/kbuild olddefconfig
 	@echo "Edit .config to set -colloid option in CONFIG_LOCALVERSION"
 
 # Step 2: build kernel image and modules, stop at first fatal error
