@@ -23,12 +23,12 @@ colloid: colloid_config colloid_kernel colloid_fs boot_colloid
 
 # Step 1: prepare kernel configuration
 config:
-	mkdir $(LINUX_DIR)/kbuild
+	mkdir -p $(LINUX_DIR)/kbuild
 	cd $(LINUX_DIR)/kbuild && \
 	make CC=$(CC_VER) -C .. O=$(pwd) mrproper olddefconfig
 
 colloid_config:
-	mkdir colloid/tpp/linux-6.3/kbuild
+	mkdir -p colloid/tpp/linux-6.3/kbuild
 	cd colloid/tpp/linux-6.3/kbuild && \
 	make CC=$(CC_VER) -C .. O=$(pwd) olddefconfig
 	@echo "Edit .config to set -colloid option in CONFIG_LOCALVERSION"
