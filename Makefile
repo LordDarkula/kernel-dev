@@ -3,7 +3,7 @@
 
 # Variables
 LINUX_DIR := linux
-BUILD_DIR  := $(KERNEL_DIR)/kbuild
+BUILD_DIR  := $(LINUX_DIR)/kbuild
 CC_VER := gcc-13
 JOBS := $(shell nproc)
 KERNEL_IMAGE := $(LINUX_DIR)/arch/x86/boot/bzImage
