@@ -3,7 +3,10 @@
 
 # Variables
 LINUX_DIR := linux
-BUILD_DIR  := $(LINUX_DIR)/kbuild
+COLLOID_KERNEL_DIR := colloid/tpp/linux-6.3/
+KBUILD := kbuild
+BUILD_DIR  := $(LINUX_DIR)/$(KBUILD)
+COLLOID_BUILD_DIR := $(COLLOID_KERNEL_DIR)/$(KBUILD)
 CC_VER := gcc-13
 JOBS := $(shell nproc)
 KERNEL_IMAGE := $(BUILD_DIR)/arch/x86/boot/bzImage
@@ -28,10 +31,8 @@ config:
 	$(MAKE) CC=$(CC_VER) -C $(LINUX_DIR) O=$(CURDIR)/$(BUILD_DIR) defconfig
 
 colloid_config:
-	mkdir -p colloid/tpp/linux-6.3/kbuild
-	cd colloid/tpp/linux-6.3/kbuild && \
-	make CC=$(CC_VER) -C .. O=colloid/tpp/linux-6.3/kbuild olddefconfig
-	@echo "Edit .config to set -colloid option in CONFIG_LOCALVERSION"
+	mkdir -p $(COLLOID_BUILD_DIR)
+	$(MAKE) CC=$(CC_VER) -C $(COLLOID_KERNEL_DIR) O=$(CURDIR)/$(COLLOID_BUILD_DIR) defconfig
 
 # Step 2: build kernel image and modules, stop at first fatal error
 kernel:
@@ -39,10 +40,9 @@ kernel:
 	$(MAKE) CC=$(CC_VER) -C $(LINUX_DIR) O=$(CURDIR)/$(BUILD_DIR) -j"$(JOBS)" bzImage modules --stop
 
 colloid_kernel:
-	@echo "==> Building colloid + TPP kernel with $(CC_VER)"
-	cd colloid/tpp/linux-6.3/kbuild && \
-	make CC=$(CC_VER) -j"$(JOBS)" bzImage modules --stop && \
-	make CC=$(CC_VER) modules_install
+	mkdir -p $(COLLOID_BUILD_DIR)
+	$(MAKE) CC=$(CC_VER) -C $(COLLOID_KERNEL_DIR) O=$(CURDIR)/$(COLLOID_BUILD_DIR) -j"$(JOBS)" bzImage modules --stop
+	$(MAKE) CC=$(CC_VER) -C $(COLLOID_KERNEL_DIR) O=$(CURDIR)/$(COLLOID_BUILD_DIR) -j"$(JOBS)" modules_install --stop
 
 # Optional: clean up build artifacts
 clean:
