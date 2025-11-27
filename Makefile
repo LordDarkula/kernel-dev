@@ -38,12 +38,12 @@ colloid_config:
 # Step 2: build kernel image and modules, stop at first fatal error
 kernel:
 	mkdir -p $(BUILD_DIR)
-	$(MAKE) CC=$(CC_VER) -C $(LINUX_DIR) O=$(CURDIR)/$(BUILD_DIR) -j"$(JOBS)" bzImage modules --stop
+	$(MAKE) CC=$(CC_VER) -C $(LINUX_DIR) O=$(CURDIR)/$(BUILD_DIR) -j"$(JOBS)" bzImage modules LOCALVERSION=-my-k --stop
 
 colloid_kernel:
 	mkdir -p $(COLLOID_BUILD_DIR)
-	$(MAKE) CC=$(CC_VER) -C $(COLLOID_KERNEL_DIR) O=$(CURDIR)/$(COLLOID_BUILD_DIR) -j"$(JOBS)" bzImage modules --stop
-	$(MAKE) CC=$(CC_VER) -C $(COLLOID_KERNEL_DIR) O=$(CURDIR)/$(COLLOID_BUILD_DIR) -j"$(JOBS)" modules_install --stop
+	$(MAKE) CC=$(CC_VER) -C $(COLLOID_KERNEL_DIR) O=$(CURDIR)/$(COLLOID_BUILD_DIR) -j"$(JOBS)" bzImage modules LOCALVERSION=-colloid --stop
+	$(MAKE) CC=$(CC_VER) -C $(COLLOID_KERNEL_DIR) O=$(CURDIR)/$(COLLOID_BUILD_DIR) -j"$(JOBS)" modules_install LOCALVERSION=-colloid --stop
 
 # Optional: clean up build artifacts
 clean:
