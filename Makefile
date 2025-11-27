@@ -33,7 +33,7 @@ config:
 colloid_config:
 	mkdir -p $(COLLOID_BUILD_DIR)
 	$(MAKE) CC=$(CC_VER) -C $(COLLOID_KERNEL_DIR) O=$(CURDIR)/$(COLLOID_BUILD_DIR) defconfig
-	yes "" | $(MAKE) CC=$(CC_VER) -C $(COLLOID_KERNEL_DIR) O=$(CURDIR)/$(COLLOID_BUILD_DIE) oldconfig
+	yes "" | $(MAKE) CC=$(CC_VER) -C $(COLLOID_KERNEL_DIR) O=$(CURDIR)/$(COLLOID_BUILD_DIR) oldconfig
 
 # Step 2: build kernel image and modules, stop at first fatal error
 kernel:
