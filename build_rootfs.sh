@@ -99,5 +99,5 @@ cd ..
 
 echo "[+] Done! Initramfs is rootfs.img"
 echo "[+] You can now boot it with QEMU using:"
-echo "qemu-system-x86_64 -kernel linux/arch/x86/boot/bzImage -initrd rootfs.img -append \"console=ttyS0\" -nographic -m 512M"
+echo "qemu-system-x86_64 -kernel linux/kbuild/arch/x86/boot/bzImage -initrd rootfs.img -append \"console=ttyS0\" -nographic -m 512M"
 
