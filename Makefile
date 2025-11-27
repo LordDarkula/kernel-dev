@@ -35,9 +35,8 @@ colloid_config:
 
 # Step 2: build kernel image and modules, stop at first fatal error
 kernel:
-	@echo "==> Building kernel with $(CC_VER)..."
-	cd $(LINUX_DIR)/kbuild && \
-	make CC=$(CC_VER) -j"$(JOBS)" bzImage modules --stop
+	mkdir -p $(BUILD_DIR)
+	$(MAKE) CC=$(CC_VER) -C $(LINUX_DIR) O=$(CURDIR)/$(BUILD_DIR) -j"$(JOBS)" bzImage modules --stop
 
 colloid_kernel:
 	@echo "==> Building colloid + TPP kernel with $(CC_VER)"
