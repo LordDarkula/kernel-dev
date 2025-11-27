@@ -103,5 +103,5 @@ cd ..
 
 echo "[+] Done! Initramfs is colloid_rootfs.img"
 echo "[+] You can now boot it with QEMU using:"
-echo "qemu-system-x86_64 -kernel linux/arch/x86/boot/bzImage -initrd colloid_rootfs.img -append \"console=ttyS0\" -nographic -m 512M"
+echo "qemu-system-x86_64 -kernel colloid/tpp/linux-6.3/kbuild/arch/x86/boot/bzImage -initrd colloid_rootfs.img -append \"console=ttyS0\" -nographic -m 512M"
 

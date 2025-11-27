@@ -10,7 +10,7 @@ COLLOID_BUILD_DIR := $(COLLOID_KERNEL_DIR)/$(KBUILD)
 CC_VER := gcc-13
 JOBS := $(shell nproc)
 KERNEL_IMAGE := $(BUILD_DIR)/arch/x86/boot/bzImage
-COLLOID_KERNEL_IMAGE := colloid/tpp/linux-6.3/arch/x86/boot/bzImage
+COLLOID_KERNEL_IMAGE := $(COLLOID_BUILD_DIR)/arch/x86/boot/bzImage
 QEMU := qemu-system-x86_64
 QEMU_MEM := 4G
 QEMU_CPUS := 8
@@ -33,6 +33,7 @@ config:
 colloid_config:
 	mkdir -p $(COLLOID_BUILD_DIR)
 	$(MAKE) CC=$(CC_VER) -C $(COLLOID_KERNEL_DIR) O=$(CURDIR)/$(COLLOID_BUILD_DIR) defconfig
+	yes "" | $(MAKE) CC=$(CC_VER) -C $(COLLOID_KERNEL_DIR) O=$(CURDIR)/$(COLLOID_BUILD_DIE) oldconfig
 
 # Step 2: build kernel image and modules, stop at first fatal error
 kernel:
