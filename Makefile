@@ -3,6 +3,7 @@
 
 # Variables
 LINUX_DIR := linux
+BUILD_DIR  := $(KERNEL_DIR)/kbuild
 CC_VER := gcc-13
 JOBS := $(shell nproc)
 KERNEL_IMAGE := $(LINUX_DIR)/arch/x86/boot/bzImage
@@ -23,9 +24,8 @@ colloid: colloid_config colloid_kernel colloid_fs boot_colloid
 
 # Step 1: prepare kernel configuration
 config:
-	mkdir -p $(LINUX_DIR)/kbuild
-	cd $(LINUX_DIR)/kbuild && \
-	make CC=$(CC_VER) -C .. O=$(LINUX_DIR)/kbuild mrproper olddefconfig
+	mkdir -p $(BUILD_DIR)
+	$(MAKE) CC=$(CC_VER) -C $(LINUX_DIR) O=$(CURDIR)/$(BUILD_DIR) defconfig
 
 colloid_config:
 	mkdir -p colloid/tpp/linux-6.3/kbuild
