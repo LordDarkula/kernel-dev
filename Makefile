@@ -30,6 +30,12 @@ config:
 	mkdir -p $(BUILD_DIR)
 	$(MAKE) CC=$(CC_VER) -C $(LINUX_DIR) O=$(CURDIR)/$(BUILD_DIR) defconfig
 
+config_cloudlab:
+	mkdir -p $(BUILD_DIR)
+	$(MAKE) CC=$(CC_VER) -C $(LINUX_DIR) O=$(CURDIR)/$(BUILD_DIR) defconfig
+	cp cloudlab-v6.6.config $(BUILD_DIR)/.config
+	yes "" | make oldconfig
+
 colloid_config:
 	mkdir -p $(COLLOID_BUILD_DIR)
 	$(MAKE) CC=$(CC_VER) -C $(COLLOID_KERNEL_DIR) O=$(CURDIR)/$(COLLOID_BUILD_DIR) defconfig
