@@ -1,0 +1,917 @@
+diff --git a/linux/include/linux/memory-tiers.h b/colloid/tpp/linux-6.3/include/linux/memory-tiers.h
+index fc9647b..c903b1d 100644
+--- a/linux/include/linux/memory-tiers.h
++++ b/colloid/tpp/linux-6.3/include/linux/memory-tiers.h
+@@ -36,6 +36,9 @@ struct memory_dev_type *alloc_memory_type(int adistance);
+ void destroy_memory_type(struct memory_dev_type *memtype);
+ void init_node_memory_type(int node, struct memory_dev_type *default_type);
+ void clear_node_memory_type(int node, struct memory_dev_type *memtype);
++void colloid_init_memory_tier(int node);
++void colloid_clear_memory_tier(int node);
++struct memory_dev_type *colloid_get_default_dram_memtype(void);
+ #ifdef CONFIG_MIGRATION
+ int next_demotion_node(int node);
+ void node_get_allowed_targets(pg_data_t *pgdat, nodemask_t *targets);
+diff --git a/linux/include/linux/sched/numa_balancing.h b/colloid/tpp/linux-6.3/include/linux/sched/numa_balancing.h
+index 3988762..ae085ae 100644
+--- a/linux/include/linux/sched/numa_balancing.h
++++ b/colloid/tpp/linux-6.3/include/linux/sched/numa_balancing.h
+@@ -22,6 +22,7 @@ extern void set_numabalancing_state(bool enabled);
+ extern void task_numa_free(struct task_struct *p, bool final);
+ extern bool should_numa_migrate_memory(struct task_struct *p, struct page *page,
+ 					int src_nid, int dst_cpu);
++extern int numa_migrate_memory_away_target(struct page *page, int src_nid);
+ #else
+ static inline void task_numa_fault(int last_node, int node, int pages,
+ 				   int flags)
+@@ -42,6 +43,10 @@ static inline bool should_numa_migrate_memory(struct task_struct *p,
+ {
+ 	return true;
+ }
++static inline int numa_migrate_memory_away_target(struct page *page, int src_nid)
++{
++	return NUMA_NO_NODE;
++}
+ #endif
+ 
+ #endif /* _LINUX_SCHED_NUMA_BALANCING_H */
+diff --git a/linux/include/linux/sched/sysctl.h b/colloid/tpp/linux-6.3/include/linux/sched/sysctl.h
+index 5a64582..8abd198 100644
+--- a/linux/include/linux/sched/sysctl.h
++++ b/colloid/tpp/linux-6.3/include/linux/sched/sysctl.h
+@@ -22,6 +22,7 @@ enum sched_tunable_scaling {
+ #define NUMA_BALANCING_DISABLED		0x0
+ #define NUMA_BALANCING_NORMAL		0x1
+ #define NUMA_BALANCING_MEMORY_TIERING	0x2
++#define NUMA_BALANCING_COLLOID 0x4
+ 
+ #ifdef CONFIG_NUMA_BALANCING
+ extern int sysctl_numa_balancing_mode;
+diff --git a/linux/kernel/sched/core.c b/colloid/tpp/linux-6.3/kernel/sched/core.c
+index 0d18c39..d1c4e8a 100644
+--- a/linux/kernel/sched/core.c
++++ b/colloid/tpp/linux-6.3/kernel/sched/core.c
+@@ -4640,7 +4640,7 @@ static struct ctl_table sched_core_sysctls[] = {
+ 		.mode		= 0644,
+ 		.proc_handler	= sysctl_numa_balancing,
+ 		.extra1		= SYSCTL_ZERO,
+-		.extra2		= SYSCTL_FOUR,
++		.extra2		= SYSCTL_ONE_HUNDRED,
+ 	},
+ #endif /* CONFIG_NUMA_BALANCING */
+ 	{}
+diff --git a/linux/kernel/sched/fair.c b/colloid/tpp/linux-6.3/kernel/sched/fair.c
+index 5f6587d..bab83e5 100644
+--- a/linux/kernel/sched/fair.c
++++ b/colloid/tpp/linux-6.3/kernel/sched/fair.c
+@@ -26,6 +26,7 @@
+ #include <linux/jiffies.h>
+ #include <linux/mm_api.h>
+ #include <linux/highmem.h>
++#include <linux/swap.h>
+ #include <linux/spinlock_api.h>
+ #include <linux/cpumask_api.h>
+ #include <linux/lockdep_api.h>
+@@ -56,6 +57,8 @@
+ #include "stats.h"
+ #include "autogroup.h"
+ 
++extern int colloid_local_lat_gt_remote;
++extern int colloid_nid_of_interest;
+ /*
+  * Targeted preemption latency for CPU-bound tasks:
+  *
+@@ -1582,10 +1585,21 @@ bool should_numa_migrate_memory(struct task_struct *p, struct page * page,
+ 		unsigned long rate_limit;
+ 		unsigned int latency, th, def_th;
+ 
++		/*colloid: since we emulate slow tier with normal NUMA node,
++		in corner case, CPU on the slow NUMA could access its own page.
++		Avoid unnecessarily updating state (e.g. hot threshold) in this case*/
++		if(!node_is_toptier(dst_nid))
++			return false;
++
+ 		pgdat = NODE_DATA(dst_nid);
+ 		if (pgdat_free_space_enough(pgdat)) {
+ 			/* workload changed, reset hot threshold */
+ 			pgdat->nbp_threshold = 0;
++			if(sysctl_numa_balancing_mode & NUMA_BALANCING_COLLOID &&
++			   colloid_nid_of_interest == dst_nid &&
++			   READ_ONCE(colloid_local_lat_gt_remote))
++				return false;
++
+ 			return true;
+ 		}
+ 
+@@ -1599,10 +1613,20 @@ bool should_numa_migrate_memory(struct task_struct *p, struct page * page,
+ 		if (latency >= th)
+ 			return false;
+ 
++		if(sysctl_numa_balancing_mode & NUMA_BALANCING_COLLOID &&
++		   colloid_nid_of_interest == dst_nid &&
++			READ_ONCE(colloid_local_lat_gt_remote))
++			return false;
++
+ 		return !numa_promotion_rate_limit(pgdat, rate_limit,
+ 						  thp_nr_pages(page));
+ 	}
+ 
++	/*In colloid, since we enable local hint faults, we may reach here
++	even if normal numa balancing is off. In that case, avoid going any futher. */
++	if(!(sysctl_numa_balancing_mode & NUMA_BALANCING_NORMAL))
++	   return false;
++
+ 	this_cpupid = cpu_pid_to_cpupid(dst_cpu, current->pid);
+ 	last_cpupid = page_cpupid_xchg_last(page, this_cpupid);
+ 
+@@ -1669,6 +1693,46 @@ bool should_numa_migrate_memory(struct task_struct *p, struct page * page,
+ 	       group_faults_cpu(ng, src_nid) * group_faults(p, dst_nid) * 4;
+ }
+ 
++/*
++colloid
++Should we migrate page away from local NUMA node due to congestion?
++if yes, returns nid of destination node
++otherwise returns NUMA_NO_NODE
++*/
++int numa_migrate_memory_away_target(struct page *page, int src_nid) {
++	unsigned int latency, th;
++	// TODO: add condition to ignore mlocked / unevictable pages
++	if(!(sysctl_numa_balancing_mode & NUMA_BALANCING_MEMORY_TIERING &&
++	     sysctl_numa_balancing_mode & NUMA_BALANCING_COLLOID))
++		 return NUMA_NO_NODE;
++	
++	if(src_nid != colloid_nid_of_interest)
++		return NUMA_NO_NODE;
++
++	if(!READ_ONCE(colloid_local_lat_gt_remote))
++		return NUMA_NO_NODE;
++
++	// Local memory is congested
++
++	if(sysctl_numa_balancing_mode & NUMA_BALANCING_NORMAL) {
++		// No timestamp, use active/inactive list to determine hotness
++		// Do not move pages that are not in the active list
++		if(!PageActive(page)) {
++			mark_page_accessed(page);
++			return NUMA_NO_NODE;
++		}
++	} else {
++		// Timestamp in page flags. use hint fault latency to determine hotness
++		th = NODE_DATA(src_nid)->nbp_threshold ? : sysctl_numa_balancing_hot_threshold;
++		latency = numa_hint_fault_latency(page);
++		if (latency >= th)
++			return NUMA_NO_NODE;
++	}
++
++	return next_demotion_node(src_nid);
++
++}
++
+ /*
+  * 'numa_type' describes the node at the moment of load balancing.
+  */
+@@ -2858,6 +2922,10 @@ void task_numa_fault(int last_cpupid, int mem_node, int pages, int flags)
+ 	     !cpupid_valid(last_cpupid)))
+ 		return;
+ 
++	/*colloid: NUMA fault stats not necessary when normal NUMA balancing is off*/
++	if(!(sysctl_numa_balancing_mode & NUMA_BALANCING_NORMAL))
++		return;
++
+ 	/* Allocate buffer to track faults on a per-node basis */
+ 	if (unlikely(!p->numa_faults)) {
+ 		int size = sizeof(*p->numa_faults) *
+diff --git a/linux/mm/huge_memory.c b/colloid/tpp/linux-6.3/mm/huge_memory.c
+index 3fae2d2..7e21fa5 100644
+--- a/linux/mm/huge_memory.c
++++ b/colloid/tpp/linux-6.3/mm/huge_memory.c
+@@ -1546,6 +1546,14 @@ vm_fault_t do_huge_pmd_numa_page(struct vm_fault *vmf)
+ 	target_nid = numa_migrate_prep(page, vma, haddr, page_nid,
+ 				       &flags);
+ 
++	/*
++	colloid
++	Move pages away from local NUMA is congested
++	*/
++	if(page_nid == numa_node_id() && target_nid == NUMA_NO_NODE) {
++		target_nid = numa_migrate_memory_away_target(page, page_nid);
++	}
++
+ 	if (target_nid == NUMA_NO_NODE) {
+ 		put_page(page);
+ 		goto out_map;
+@@ -1889,12 +1897,17 @@ int change_huge_pmd(struct mmu_gather *tlb, struct vm_area_struct *vma,
+ 		 * Skip scanning top tier node if normal numa
+ 		 * balancing is disabled
+ 		 */
++		 // Enable hint faults for top tier nodes in colloid
+ 		if (!(sysctl_numa_balancing_mode & NUMA_BALANCING_NORMAL) &&
++			!(sysctl_numa_balancing_mode & NUMA_BALANCING_COLLOID && 
++			  sysctl_numa_balancing_mode & NUMA_BALANCING_MEMORY_TIERING) &&
+ 		    toptier)
+ 			goto unlock;
+ 
++		// Record access time in page flags for top tier if colloid is enabled and normal numa balancing is not
+ 		if (sysctl_numa_balancing_mode & NUMA_BALANCING_MEMORY_TIERING &&
+-		    !toptier)
++		    (!toptier || ((sysctl_numa_balancing_mode & NUMA_BALANCING_COLLOID) && 
++						 !(sysctl_numa_balancing_mode & NUMA_BALANCING_NORMAL))))
+ 			xchg_page_access_time(page, jiffies_to_msecs(jiffies));
+ 	}
+ 	/*
+diff --git a/linux/mm/memory-tiers.c b/colloid/tpp/linux-6.3/mm/memory-tiers.c
+index e593e56..e24b66f 100644
+--- a/linux/mm/memory-tiers.c
++++ b/colloid/tpp/linux-6.3/mm/memory-tiers.c
+@@ -105,6 +105,11 @@ static int top_tier_adistance;
+ static struct demotion_nodes *node_demotion __read_mostly;
+ #endif /* CONFIG_MIGRATION */
+ 
++int colloid_local_lat_gt_remote = 0;
++EXPORT_SYMBOL(colloid_local_lat_gt_remote);
++int colloid_nid_of_interest = NUMA_NO_NODE;
++EXPORT_SYMBOL(colloid_nid_of_interest);
++
+ static inline struct memory_tier *to_memory_tier(struct device *device)
+ {
+ 	return container_of(device, struct memory_tier, dev);
+@@ -196,6 +201,8 @@ static struct memory_tier *find_create_memory_tier(struct memory_dev_type *memty
+ 	if (!new_memtier)
+ 		return ERR_PTR(-ENOMEM);
+ 
++	pr_info("allocated new mem tier");
++
+ 	new_memtier->adistance_start = adistance;
+ 	INIT_LIST_HEAD(&new_memtier->list);
+ 	INIT_LIST_HEAD(&new_memtier->memory_types);
+@@ -263,6 +270,9 @@ bool node_is_toptier(int node)
+ 	rcu_read_unlock();
+ 	return toptier;
+ }
++EXPORT_SYMBOL_GPL(node_is_toptier);
++
++
+ 
+ void node_get_allowed_targets(pg_data_t *pgdat, nodemask_t *targets)
+ {
+@@ -326,6 +336,7 @@ int next_demotion_node(int node)
+ 
+ 	return target;
+ }
++EXPORT_SYMBOL_GPL(next_demotion_node);
+ 
+ static void disable_all_demotion_targets(void)
+ {
+@@ -418,19 +429,24 @@ static void establish_demotion_targets(void)
+ 	 * Once we detect such a memory tier, we consider that tier
+ 	 * as top tiper from which promotion is not allowed.
+ 	 */
+-	list_for_each_entry_reverse(memtier, &memory_tiers, list) {
+-		tier_nodes = get_memtier_nodemask(memtier);
+-		nodes_and(tier_nodes, node_states[N_CPU], tier_nodes);
+-		if (!nodes_empty(tier_nodes)) {
+-			/*
+-			 * abstract distance below the max value of this memtier
+-			 * is considered toptier.
+-			 */
+-			top_tier_adistance = memtier->adistance_start +
+-						MEMTIER_CHUNK_SIZE - 1;
+-			break;
+-		}
+-	}
++	// list_for_each_entry_reverse(memtier, &memory_tiers, list) {
++	// 	tier_nodes = get_memtier_nodemask(memtier);
++	// 	nodes_and(tier_nodes, node_states[N_CPU], tier_nodes);
++	// 	if (!nodes_empty(tier_nodes)) {
++	// 		/*
++	// 		 * abstract distance below the max value of this memtier
++	// 		 * is considered toptier.
++	// 		 */
++	// 		top_tier_adistance = memtier->adistance_start +
++	// 					MEMTIER_CHUNK_SIZE - 1;
++	// 		break;
++	// 	}
++	// }
++
++	// midhul. colloid: Overriding top_tier_adistance to always be default dram adistance
++	// This enables putting normal NUMA nodes (with CPUs) into lower memory tiers
++	top_tier_adistance = round_down(default_dram_type->adistance, MEMTIER_CHUNK_SIZE) + MEMTIER_CHUNK_SIZE - 1;
++	pr_info("colloid: top_tier_adistance set to %d", top_tier_adistance);
+ 	/*
+ 	 * Now build the lower_tier mask for each node collecting node mask from
+ 	 * all memory tier below it. This allows us to fallback demotion page
+@@ -488,8 +504,10 @@ static struct memory_tier *set_node_memory_tier(int node)
+ 	__init_node_memory_type(node, default_dram_type);
+ 
+ 	memtype = node_memory_types[node].memtype;
++	pr_info("set_node_memory_tier, memtype adist = %d", memtype->adistance);
+ 	node_set(node, memtype->nodes);
+ 	memtier = find_create_memory_tier(memtype);
++	pr_info("set_node_memory_tier, memtier adist_start = %d", memtier->adistance_start);
+ 	if (!IS_ERR(memtier))
+ 		rcu_assign_pointer(pgdat->memtier, memtier);
+ 	return memtier;
+@@ -579,14 +597,17 @@ EXPORT_SYMBOL_GPL(init_node_memory_type);
+ void clear_node_memory_type(int node, struct memory_dev_type *memtype)
+ {
+ 	mutex_lock(&memory_tier_lock);
++	pr_info("clear_node_memory_type, map_count=%d, memtype adist=%d", node_memory_types[node].map_count, node_memory_types[node].memtype->adistance);
+ 	if (node_memory_types[node].memtype == memtype)
+ 		node_memory_types[node].map_count--;
+ 	/*
+ 	 * If we umapped all the attached devices to this node,
+ 	 * clear the node memory type.
+ 	 */
++	pr_info("clear_node_memory_type, map_count=%d, memtype adist=%d", node_memory_types[node].map_count, node_memory_types[node].memtype->adistance);
+ 	if (!node_memory_types[node].map_count) {
+ 		node_memory_types[node].memtype = NULL;
++		pr_info("node_memory_types[node].memtype set to NULL");
+ 		kref_put(&memtype->kref, release_memtype);
+ 	}
+ 	mutex_unlock(&memory_tier_lock);
+@@ -625,6 +646,43 @@ static int __meminit memtier_hotplug_callback(struct notifier_block *self,
+ 	return notifier_from_errno(0);
+ }
+ 
++struct memory_dev_type *colloid_get_default_dram_memtype() {
++	return default_dram_type;
++}
++EXPORT_SYMBOL_GPL(colloid_get_default_dram_memtype);
++
++void colloid_init_memory_tier(int node) {
++	struct memory_tier *memtier;
++
++	if (node_state(node, N_CPU)) {
++		pr_info("colloid: NUMA node is NOT zero CPU");
++	} else {
++		pr_info("colloid: NUMA node is zero CPU");
++	}
++
++	mutex_lock(&memory_tier_lock);
++	memtier = set_node_memory_tier(node);
++	if (!IS_ERR(memtier)) {
++		pr_info("set_node_memory_tier success");
++		establish_demotion_targets();
++		pr_info("established demotion targets");
++	}
++	mutex_unlock(&memory_tier_lock);
++}
++EXPORT_SYMBOL_GPL(colloid_init_memory_tier);
++
++void colloid_clear_memory_tier(int node) {
++	struct memory_tier *memtier;
++
++	mutex_lock(&memory_tier_lock);
++	clear_node_memory_tier(node);
++	pr_info("clear_node_memory_tier");
++	establish_demotion_targets();
++	pr_info("established demotion targets");
++	mutex_unlock(&memory_tier_lock);
++}
++EXPORT_SYMBOL_GPL(colloid_clear_memory_tier);
++
+ static int __init memory_tier_init(void)
+ {
+ 	int ret, node;
+diff --git a/linux/mm/memory.c b/colloid/tpp/linux-6.3/mm/memory.c
+index 01a23ad..1ba11cb 100644
+--- a/linux/mm/memory.c
++++ b/colloid/tpp/linux-6.3/mm/memory.c
+@@ -4734,6 +4734,13 @@ static vm_fault_t do_numa_page(struct vm_fault *vmf)
+ 		last_cpupid = page_cpupid_last(page);
+ 	target_nid = numa_migrate_prep(page, vma, vmf->address, page_nid,
+ 			&flags);
++	/*
++	colloid
++	Move pages away from local NUMA is congested
++	*/
++	if(page_nid == numa_node_id() && target_nid == NUMA_NO_NODE) {
++		target_nid = numa_migrate_memory_away_target(page, page_nid);
++	}
+ 	if (target_nid == NUMA_NO_NODE) {
+ 		put_page(page);
+ 		goto out_map;
+diff --git a/linux/mm/migrate.c b/colloid/tpp/linux-6.3/mm/migrate.c
+index db3f154..52da37e 100644
+--- a/linux/mm/migrate.c
++++ b/colloid/tpp/linux-6.3/mm/migrate.c
+@@ -599,6 +599,7 @@ void folio_migrate_flags(struct folio *newfolio, struct folio *folio)
+ 	 * memory node, reset cpupid, because that is used to record
+ 	 * page access time in slow memory node.
+ 	 */
++	//  TODO: For colloid, (if normal numa balancing is off) perhaps we don't want to reset 
+ 	if (sysctl_numa_balancing_mode & NUMA_BALANCING_MEMORY_TIERING) {
+ 		bool f_toptier = node_is_toptier(page_to_nid(&folio->page));
+ 		bool t_toptier = node_is_toptier(page_to_nid(&newfolio->page));
+diff --git a/linux/mm/mprotect.c b/colloid/tpp/linux-6.3/mm/mprotect.c
+index 36351a0..b1c55c3 100644
+--- a/linux/mm/mprotect.c
++++ b/colloid/tpp/linux-6.3/mm/mprotect.c
+@@ -156,6 +156,8 @@ static long change_pte_range(struct mmu_gather *tlb,
+ 				 * Don't mess with PTEs if page is already on the node
+ 				 * a single-threaded process is running on.
+ 				 */
++				// TODO: Update this for colloid; want hint faults even for single-threaded process
++				// TODO: After making this update, make sure to test with mlocked memory
+ 				nid = page_to_nid(page);
+ 				if (target_node == nid)
+ 					continue;
+@@ -165,11 +167,16 @@ static long change_pte_range(struct mmu_gather *tlb,
+ 				 * Skip scanning top tier node if normal numa
+ 				 * balancing is disabled
+ 				 */
++				// Enable hint faults for top tier nodes in colloid
+ 				if (!(sysctl_numa_balancing_mode & NUMA_BALANCING_NORMAL) &&
++					!(sysctl_numa_balancing_mode & NUMA_BALANCING_COLLOID && 
++					  sysctl_numa_balancing_mode & NUMA_BALANCING_MEMORY_TIERING) &&
+ 				    toptier)
+ 					continue;
++				// Record access time in page flags for top tier if colloid is enabled and normal numa balancing is not
+ 				if (sysctl_numa_balancing_mode & NUMA_BALANCING_MEMORY_TIERING &&
+-				    !toptier)
++				    (!toptier || ((sysctl_numa_balancing_mode & NUMA_BALANCING_COLLOID) && 
++								 !(sysctl_numa_balancing_mode & NUMA_BALANCING_NORMAL))))
+ 					xchg_page_access_time(page,
+ 						jiffies_to_msecs(jiffies));
+ 			}
+diff --git a/linux/mm/page_alloc.c b/colloid/tpp/linux-6.3/mm/page_alloc.c
+index 8e39705..e205139 100644
+--- a/linux/mm/page_alloc.c
++++ b/colloid/tpp/linux-6.3/mm/page_alloc.c
+@@ -6515,6 +6515,9 @@ static void build_zonelists(pg_data_t *pgdat)
+ 	int node, nr_nodes = 0;
+ 	nodemask_t used_mask = NODE_MASK_NONE;
+ 	int local_node, prev_node;
++	#ifdef CONFIG_COLLOID_OVERRIDE_FALLBACK
++	int colloid_remote_idx;
++	#endif
+ 
+ 	/* NUMA-aware ordering of nodes */
+ 	local_node = pgdat->node_id;
+@@ -6535,6 +6538,25 @@ static void build_zonelists(pg_data_t *pgdat)
+ 		prev_node = node;
+ 	}
+ 
++	#ifdef CONFIG_COLLOID_OVERRIDE_FALLBACK
++	// Colloid: overwrite node order for colloid local numa node
++	if(local_node == CONFIG_COLLOID_DEFAULT_TIER_NUMA) {
++		colloid_remote_idx = -1;
++		for (node = 0; node < nr_nodes; node++) {
++			if(node_order[node] == CONFIG_COLLOID_ALTERNATE_TIER_NUMA) {
++				colloid_remote_idx = node;
++				break;
++			}
++		}
++		// make sure colloid remote node is second in the list
++		while(colloid_remote_idx > 1) {
++			node_order[colloid_remote_idx] = node_order[colloid_remote_idx-1];
++			node_order[colloid_remote_idx-1] = CONFIG_COLLOID_ALTERNATE_TIER_NUMA;
++			colloid_remote_idx--;
++		}
++	}
++	#endif
++
+ 	build_zonelists_in_node_order(pgdat, node_order, nr_nodes);
+ 	build_thisnode_zonelists(pgdat);
+ 	pr_info("Fallback order for Node %d: ", local_node);
+diff --git a/colloid/tpp/linux-6.3/tools/bpf/resolve_btfids/libsubcmd/include/subcmd/exec-cmd.h b/colloid/tpp/linux-6.3/tools/bpf/resolve_btfids/libsubcmd/include/subcmd/exec-cmd.h
+new file mode 100644
+index 0000000..aba591b
+--- /dev/null
++++ b/colloid/tpp/linux-6.3/tools/bpf/resolve_btfids/libsubcmd/include/subcmd/exec-cmd.h
+@@ -0,0 +1,17 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __SUBCMD_EXEC_CMD_H
++#define __SUBCMD_EXEC_CMD_H
++
++extern void exec_cmd_init(const char *exec_name, const char *prefix,
++			  const char *exec_path, const char *exec_path_env);
++
++extern void set_argv_exec_path(const char *exec_path);
++extern const char *extract_argv0_path(const char *path);
++extern void setup_path(void);
++extern int execv_cmd(const char **argv); /* NULL terminated */
++extern int execl_cmd(const char *cmd, ...);
++/* get_argv_exec_path and system_path return malloc'd string, caller must free it */
++extern char *get_argv_exec_path(void);
++extern char *system_path(const char *path);
++
++#endif /* __SUBCMD_EXEC_CMD_H */
+diff --git a/colloid/tpp/linux-6.3/tools/bpf/resolve_btfids/libsubcmd/include/subcmd/help.h b/colloid/tpp/linux-6.3/tools/bpf/resolve_btfids/libsubcmd/include/subcmd/help.h
+new file mode 100644
+index 0000000..355c066
+--- /dev/null
++++ b/colloid/tpp/linux-6.3/tools/bpf/resolve_btfids/libsubcmd/include/subcmd/help.h
+@@ -0,0 +1,36 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __SUBCMD_HELP_H
++#define __SUBCMD_HELP_H
++
++#include <sys/types.h>
++#include <stdio.h>
++
++struct cmdnames {
++	size_t alloc;
++	size_t cnt;
++	struct cmdname {
++		size_t len; /* also used for similarity index in help.c */
++		char name[];
++	} **names;
++};
++
++static inline void mput_char(char c, unsigned int num)
++{
++	while(num--)
++		putchar(c);
++}
++
++void load_command_list(const char *prefix,
++		struct cmdnames *main_cmds,
++		struct cmdnames *other_cmds);
++void add_cmdname(struct cmdnames *cmds, const char *name, size_t len);
++void clean_cmdnames(struct cmdnames *cmds);
++int cmdname_compare(const void *a, const void *b);
++void uniq(struct cmdnames *cmds);
++/* Here we require that excludes is a sorted list. */
++void exclude_cmds(struct cmdnames *cmds, struct cmdnames *excludes);
++int is_in_cmdlist(struct cmdnames *c, const char *s);
++void list_commands(const char *title, struct cmdnames *main_cmds,
++		   struct cmdnames *other_cmds);
++
++#endif /* __SUBCMD_HELP_H */
+diff --git a/colloid/tpp/linux-6.3/tools/bpf/resolve_btfids/libsubcmd/include/subcmd/pager.h b/colloid/tpp/linux-6.3/tools/bpf/resolve_btfids/libsubcmd/include/subcmd/pager.h
+new file mode 100644
+index 0000000..a818964
+--- /dev/null
++++ b/colloid/tpp/linux-6.3/tools/bpf/resolve_btfids/libsubcmd/include/subcmd/pager.h
+@@ -0,0 +1,12 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __SUBCMD_PAGER_H
++#define __SUBCMD_PAGER_H
++
++extern void pager_init(const char *pager_env);
++
++extern void setup_pager(void);
++extern int pager_in_use(void);
++extern int pager_get_columns(void);
++extern void force_pager(const char *);
++
++#endif /* __SUBCMD_PAGER_H */
+diff --git a/colloid/tpp/linux-6.3/tools/bpf/resolve_btfids/libsubcmd/include/subcmd/parse-options.h b/colloid/tpp/linux-6.3/tools/bpf/resolve_btfids/libsubcmd/include/subcmd/parse-options.h
+new file mode 100644
+index 0000000..41b9b94
+--- /dev/null
++++ b/colloid/tpp/linux-6.3/tools/bpf/resolve_btfids/libsubcmd/include/subcmd/parse-options.h
+@@ -0,0 +1,247 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __SUBCMD_PARSE_OPTIONS_H
++#define __SUBCMD_PARSE_OPTIONS_H
++
++#include <linux/kernel.h>
++#include <stdbool.h>
++#include <stdint.h>
++
++#ifndef NORETURN
++#define NORETURN __attribute__((__noreturn__))
++#endif
++
++enum parse_opt_type {
++	/* special types */
++	OPTION_END,
++	OPTION_ARGUMENT,
++	OPTION_GROUP,
++	/* options with no arguments */
++	OPTION_BIT,
++	OPTION_BOOLEAN,
++	OPTION_INCR,
++	OPTION_SET_UINT,
++	OPTION_SET_PTR,
++	/* options with arguments (usually) */
++	OPTION_STRING,
++	OPTION_INTEGER,
++	OPTION_LONG,
++	OPTION_ULONG,
++	OPTION_CALLBACK,
++	OPTION_U64,
++	OPTION_UINTEGER,
++};
++
++enum parse_opt_flags {
++	PARSE_OPT_KEEP_DASHDASH = 1,
++	PARSE_OPT_STOP_AT_NON_OPTION = 2,
++	PARSE_OPT_KEEP_ARGV0 = 4,
++	PARSE_OPT_KEEP_UNKNOWN = 8,
++	PARSE_OPT_NO_INTERNAL_HELP = 16,
++};
++
++enum parse_opt_option_flags {
++	PARSE_OPT_OPTARG  = 1,
++	PARSE_OPT_NOARG   = 2,
++	PARSE_OPT_NONEG   = 4,
++	PARSE_OPT_HIDDEN  = 8,
++	PARSE_OPT_LASTARG_DEFAULT = 16,
++	PARSE_OPT_DISABLED = 32,
++	PARSE_OPT_EXCLUSIVE = 64,
++	PARSE_OPT_NOEMPTY  = 128,
++	PARSE_OPT_NOBUILD  = 256,
++	PARSE_OPT_CANSKIP  = 512,
++};
++
++struct option;
++typedef int parse_opt_cb(const struct option *, const char *arg, int unset);
++
++/*
++ * `type`::
++ *   holds the type of the option, you must have an OPTION_END last in your
++ *   array.
++ *
++ * `short_name`::
++ *   the character to use as a short option name, '\0' if none.
++ *
++ * `long_name`::
++ *   the long option name, without the leading dashes, NULL if none.
++ *
++ * `value`::
++ *   stores pointers to the values to be filled.
++ *
++ * `argh`::
++ *   token to explain the kind of argument this option wants. Keep it
++ *   homogeneous across the repository.
++ *
++ * `help`::
++ *   the short help associated to what the option does.
++ *   Must never be NULL (except for OPTION_END).
++ *   OPTION_GROUP uses this pointer to store the group header.
++ *
++ * `flags`::
++ *   mask of parse_opt_option_flags.
++ *   PARSE_OPT_OPTARG: says that the argument is optional (not for BOOLEANs)
++ *   PARSE_OPT_NOARG: says that this option takes no argument, for CALLBACKs
++ *   PARSE_OPT_NONEG: says that this option cannot be negated
++ *   PARSE_OPT_HIDDEN this option is skipped in the default usage, showed in
++ *                    the long one.
++ *
++ * `callback`::
++ *   pointer to the callback to use for OPTION_CALLBACK.
++ *
++ * `defval`::
++ *   default value to fill (*->value) with for PARSE_OPT_OPTARG.
++ *   OPTION_{BIT,SET_UINT,SET_PTR} store the {mask,integer,pointer} to put in
++ *   the value when met.
++ *   CALLBACKS can use it like they want.
++ *
++ * `set`::
++ *   whether an option was set by the user
++ */
++struct option {
++	enum parse_opt_type type;
++	int short_name;
++	const char *long_name;
++	void *value;
++	const char *argh;
++	const char *help;
++	const char *build_opt;
++
++	int flags;
++	parse_opt_cb *callback;
++	intptr_t defval;
++	bool *set;
++	void *data;
++	const struct option *parent;
++};
++
++#define check_vtype(v, type) ( BUILD_BUG_ON_ZERO(!__builtin_types_compatible_p(typeof(v), type)) + v )
++
++#define OPT_END()                   { .type = OPTION_END }
++#define OPT_PARENT(p)               { .type = OPTION_END, .parent = (p) }
++#define OPT_ARGUMENT(l, h)          { .type = OPTION_ARGUMENT, .long_name = (l), .help = (h) }
++#define OPT_GROUP(h)                { .type = OPTION_GROUP, .help = (h) }
++#define OPT_BIT(s, l, v, h, b)      { .type = OPTION_BIT, .short_name = (s), .long_name = (l), .value = check_vtype(v, int *), .help = (h), .defval = (b) }
++#define OPT_BOOLEAN(s, l, v, h)     { .type = OPTION_BOOLEAN, .short_name = (s), .long_name = (l), .value = check_vtype(v, bool *), .help = (h) }
++#define OPT_BOOLEAN_FLAG(s, l, v, h, f)     { .type = OPTION_BOOLEAN, .short_name = (s), .long_name = (l), .value = check_vtype(v, bool *), .help = (h), .flags = (f) }
++#define OPT_BOOLEAN_SET(s, l, v, os, h) \
++	{ .type = OPTION_BOOLEAN, .short_name = (s), .long_name = (l), \
++	.value = check_vtype(v, bool *), .help = (h), \
++	.set = check_vtype(os, bool *)}
++#define OPT_INCR(s, l, v, h)        { .type = OPTION_INCR, .short_name = (s), .long_name = (l), .value = check_vtype(v, int *), .help = (h) }
++#define OPT_SET_UINT(s, l, v, h, i)  { .type = OPTION_SET_UINT, .short_name = (s), .long_name = (l), .value = check_vtype(v, unsigned int *), .help = (h), .defval = (i) }
++#define OPT_SET_PTR(s, l, v, h, p)  { .type = OPTION_SET_PTR, .short_name = (s), .long_name = (l), .value = (v), .help = (h), .defval = (p) }
++#define OPT_INTEGER(s, l, v, h)     { .type = OPTION_INTEGER, .short_name = (s), .long_name = (l), .value = check_vtype(v, int *), .help = (h) }
++#define OPT_UINTEGER(s, l, v, h)    { .type = OPTION_UINTEGER, .short_name = (s), .long_name = (l), .value = check_vtype(v, unsigned int *), .help = (h) }
++#define OPT_UINTEGER_OPTARG(s, l, v, d, h)    { .type = OPTION_UINTEGER, .short_name = (s), .long_name = (l), .value = check_vtype(v, unsigned int *), .help = (h), .flags = PARSE_OPT_OPTARG, .defval = (intptr_t)(d) }
++#define OPT_LONG(s, l, v, h)        { .type = OPTION_LONG, .short_name = (s), .long_name = (l), .value = check_vtype(v, long *), .help = (h) }
++#define OPT_ULONG(s, l, v, h)        { .type = OPTION_ULONG, .short_name = (s), .long_name = (l), .value = check_vtype(v, unsigned long *), .help = (h) }
++#define OPT_U64(s, l, v, h)         { .type = OPTION_U64, .short_name = (s), .long_name = (l), .value = check_vtype(v, u64 *), .help = (h) }
++#define OPT_STRING(s, l, v, a, h)   { .type = OPTION_STRING,  .short_name = (s), .long_name = (l), .value = check_vtype(v, const char **), .argh = (a), .help = (h) }
++#define OPT_STRING_OPTARG(s, l, v, a, h, d) \
++	{ .type = OPTION_STRING,  .short_name = (s), .long_name = (l), \
++	  .value = check_vtype(v, const char **), .argh =(a), .help = (h), \
++	  .flags = PARSE_OPT_OPTARG, .defval = (intptr_t)(d) }
++#define OPT_STRING_OPTARG_SET(s, l, v, os, a, h, d) \
++	{ .type = OPTION_STRING, .short_name = (s), .long_name = (l), \
++	  .value = check_vtype(v, const char **), .argh = (a), .help = (h), \
++	  .flags = PARSE_OPT_OPTARG, .defval = (intptr_t)(d), \
++	  .set = check_vtype(os, bool *)}
++#define OPT_STRING_NOEMPTY(s, l, v, a, h)   { .type = OPTION_STRING,  .short_name = (s), .long_name = (l), .value = check_vtype(v, const char **), .argh = (a), .help = (h), .flags = PARSE_OPT_NOEMPTY}
++#define OPT_DATE(s, l, v, h) \
++	{ .type = OPTION_CALLBACK, .short_name = (s), .long_name = (l), .value = (v), .argh = "time", .help = (h), .callback = parse_opt_approxidate_cb }
++#define OPT_CALLBACK(s, l, v, a, h, f) \
++	{ .type = OPTION_CALLBACK, .short_name = (s), .long_name = (l), .value = (v), .argh = (a), .help = (h), .callback = (f) }
++#define OPT_CALLBACK_SET(s, l, v, os, a, h, f) \
++	{ .type = OPTION_CALLBACK, .short_name = (s), .long_name = (l), .value = (v), .argh = (a), .help = (h), .callback = (f), .set = check_vtype(os, bool *)}
++#define OPT_CALLBACK_NOOPT(s, l, v, a, h, f) \
++	{ .type = OPTION_CALLBACK, .short_name = (s), .long_name = (l), .value = (v), .argh = (a), .help = (h), .callback = (f), .flags = PARSE_OPT_NOARG }
++#define OPT_CALLBACK_DEFAULT(s, l, v, a, h, f, d) \
++	{ .type = OPTION_CALLBACK, .short_name = (s), .long_name = (l), .value = (v), .argh = (a), .help = (h), .callback = (f), .defval = (intptr_t)d, .flags = PARSE_OPT_LASTARG_DEFAULT }
++#define OPT_CALLBACK_DEFAULT_NOOPT(s, l, v, a, h, f, d) \
++	{ .type = OPTION_CALLBACK, .short_name = (s), .long_name = (l),\
++	.value = (v), .arg = (a), .help = (h), .callback = (f), .defval = (intptr_t)d,\
++	.flags = PARSE_OPT_LASTARG_DEFAULT | PARSE_OPT_NOARG}
++#define OPT_CALLBACK_OPTARG(s, l, v, d, a, h, f) \
++	{ .type = OPTION_CALLBACK, .short_name = (s), .long_name = (l), \
++	  .value = (v), .argh = (a), .help = (h), .callback = (f), \
++	  .flags = PARSE_OPT_OPTARG, .data = (d) }
++
++/* parse_options() will filter out the processed options and leave the
++ * non-option argments in argv[].
++ * Returns the number of arguments left in argv[].
++ *
++ * NOTE: parse_options() and parse_options_subcommand() may call exit() in the
++ * case of an error (or for 'special' options like --list-cmds or --list-opts).
++ */
++extern int parse_options(int argc, const char **argv,
++                         const struct option *options,
++                         const char * const usagestr[], int flags);
++
++extern int parse_options_subcommand(int argc, const char **argv,
++				const struct option *options,
++				const char *const subcommands[],
++				const char *usagestr[], int flags);
++
++extern NORETURN void usage_with_options(const char * const *usagestr,
++                                        const struct option *options);
++extern NORETURN __attribute__((format(printf,3,4)))
++void usage_with_options_msg(const char * const *usagestr,
++			    const struct option *options,
++			    const char *fmt, ...);
++
++/*----- incremantal advanced APIs -----*/
++
++enum {
++	PARSE_OPT_HELP = -1,
++	PARSE_OPT_DONE,
++	PARSE_OPT_LIST_OPTS,
++	PARSE_OPT_LIST_SUBCMDS,
++	PARSE_OPT_UNKNOWN,
++};
++
++/*
++ * It's okay for the caller to consume argv/argc in the usual way.
++ * Other fields of that structure are private to parse-options and should not
++ * be modified in any way.
++ */
++struct parse_opt_ctx_t {
++	const char **argv;
++	const char **out;
++	int argc, cpidx;
++	const char *opt;
++	const struct option *excl_opt;
++	int flags;
++};
++
++extern int parse_options_usage(const char * const *usagestr,
++			       const struct option *opts,
++			       const char *optstr,
++			       bool short_opt);
++
++
++/*----- some often used options -----*/
++extern int parse_opt_abbrev_cb(const struct option *, const char *, int);
++extern int parse_opt_approxidate_cb(const struct option *, const char *, int);
++extern int parse_opt_verbosity_cb(const struct option *, const char *, int);
++
++#define OPT__VERBOSE(var)  OPT_BOOLEAN('v', "verbose", (var), "be verbose")
++#define OPT__QUIET(var)    OPT_BOOLEAN('q', "quiet",   (var), "be quiet")
++#define OPT__VERBOSITY(var) \
++	{ OPTION_CALLBACK, 'v', "verbose", (var), NULL, "be more verbose", \
++	  PARSE_OPT_NOARG, &parse_opt_verbosity_cb, 0 }, \
++	{ OPTION_CALLBACK, 'q', "quiet", (var), NULL, "be more quiet", \
++	  PARSE_OPT_NOARG, &parse_opt_verbosity_cb, 0 }
++#define OPT__DRY_RUN(var)  OPT_BOOLEAN('n', "dry-run", (var), "dry run")
++#define OPT__ABBREV(var)  \
++	{ OPTION_CALLBACK, 0, "abbrev", (var), "n", \
++	  "use <n> digits to display SHA-1s", \
++	  PARSE_OPT_OPTARG, &parse_opt_abbrev_cb, 0 }
++
++extern const char *parse_options_fix_filename(const char *prefix, const char *file);
++
++void set_option_flag(struct option *opts, int sopt, const char *lopt, int flag);
++void set_option_nobuild(struct option *opts, int shortopt, const char *longopt,
++			const char *build_opt, bool can_skip);
++
++#endif /* __SUBCMD_PARSE_OPTIONS_H */
+diff --git a/colloid/tpp/linux-6.3/tools/bpf/resolve_btfids/libsubcmd/include/subcmd/run-command.h b/colloid/tpp/linux-6.3/tools/bpf/resolve_btfids/libsubcmd/include/subcmd/run-command.h
+new file mode 100644
+index 0000000..17d969c
+--- /dev/null
++++ b/colloid/tpp/linux-6.3/tools/bpf/resolve_btfids/libsubcmd/include/subcmd/run-command.h
+@@ -0,0 +1,61 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __SUBCMD_RUN_COMMAND_H
++#define __SUBCMD_RUN_COMMAND_H
++
++#include <unistd.h>
++
++enum {
++	ERR_RUN_COMMAND_FORK = 10000,
++	ERR_RUN_COMMAND_EXEC,
++	ERR_RUN_COMMAND_PIPE,
++	ERR_RUN_COMMAND_WAITPID,
++	ERR_RUN_COMMAND_WAITPID_WRONG_PID,
++	ERR_RUN_COMMAND_WAITPID_SIGNAL,
++	ERR_RUN_COMMAND_WAITPID_NOEXIT,
++};
++#define IS_RUN_COMMAND_ERR(x) (-(x) >= ERR_RUN_COMMAND_FORK)
++
++struct child_process {
++	const char **argv;
++	pid_t pid;
++	/*
++	 * Using .in, .out, .err:
++	 * - Specify 0 for no redirections (child inherits stdin, stdout,
++	 *   stderr from parent).
++	 * - Specify -1 to have a pipe allocated as follows:
++	 *     .in: returns the writable pipe end; parent writes to it,
++	 *          the readable pipe end becomes child's stdin
++	 *     .out, .err: returns the readable pipe end; parent reads from
++	 *          it, the writable pipe end becomes child's stdout/stderr
++	 *   The caller of start_command() must close the returned FDs
++	 *   after it has completed reading from/writing to it!
++	 * - Specify > 0 to set a channel to a particular FD as follows:
++	 *     .in: a readable FD, becomes child's stdin
++	 *     .out: a writable FD, becomes child's stdout/stderr
++	 *     .err > 0 not supported
++	 *   The specified FD is closed by start_command(), even in case
++	 *   of errors!
++	 */
++	int in;
++	int out;
++	int err;
++	const char *dir;
++	const char *const *env;
++	unsigned no_stdin:1;
++	unsigned no_stdout:1;
++	unsigned no_stderr:1;
++	unsigned exec_cmd:1; /* if this is to be external sub-command */
++	unsigned stdout_to_stderr:1;
++	void (*preexec_cb)(void);
++};
++
++int start_command(struct child_process *);
++int finish_command(struct child_process *);
++int run_command(struct child_process *);
++
++#define RUN_COMMAND_NO_STDIN 1
++#define RUN_EXEC_CMD	     2	/*If this is to be external sub-command */
++#define RUN_COMMAND_STDOUT_TO_STDERR 4
++int run_command_v_opt(const char **argv, int opt);
++
++#endif /* __SUBCMD_RUN_COMMAND_H */
+diff --git a/linux/tools/testing/selftests/arm64/tags/tags_test.c b/linux/tools/testing/selftests/arm64/tags/tags_test.c
+deleted file mode 100644
+index 5701163..0000000
+--- a/linux/tools/testing/selftests/arm64/tags/tags_test.c
++++ /dev/null
+@@ -1,31 +0,0 @@
+-// SPDX-License-Identifier: GPL-2.0
+-
+-#include <stdio.h>
+-#include <stdlib.h>
+-#include <unistd.h>
+-#include <stdint.h>
+-#include <sys/prctl.h>
+-#include <sys/utsname.h>
+-
+-#define SHIFT_TAG(tag)		((uint64_t)(tag) << 56)
+-#define SET_TAG(ptr, tag)	(((uint64_t)(ptr) & ~SHIFT_TAG(0xff)) | \
+-					SHIFT_TAG(tag))
+-
+-int main(void)
+-{
+-	static int tbi_enabled = 0;
+-	unsigned long tag = 0;
+-	struct utsname *ptr;
+-	int err;
+-
+-	if (prctl(PR_SET_TAGGED_ADDR_CTRL, PR_TAGGED_ADDR_ENABLE, 0, 0, 0) == 0)
+-		tbi_enabled = 1;
+-	ptr = (struct utsname *)malloc(sizeof(*ptr));
+-	if (tbi_enabled)
+-		tag = 0x42;
+-	ptr = (struct utsname *)SET_TAG(ptr, tag);
+-	err = uname(ptr);
+-	free(ptr);
+-
+-	return err;
+-}
