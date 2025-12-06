@@ -4,6 +4,8 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+echo "Downloading dependencies ..."
+
 sudo apt-get update -y
 sudo apt-get install -y msr-tools pcm
 sudo modprobe msr
@@ -19,11 +21,13 @@ sudo rdmsr --processor $(echo $cpus_to_offline | cut -d ' ' -f 1) $uncore_freq_r
 # Lower the uncore freq for that NUMA node to mimic increased memory access latency.
 sudo wrmsr --processor $(echo $cpus_to_offline | cut -d ' ' -f 1) $uncore_freq_reg $low_uncore_freq
 
+echo "About to sleep"
+
 # Give time to the new freq to kick in.
 sleep 3
 
 # Safety check to ensure that the new freq has been applied.
-readonly measured_uncore_freq=$(sudo pcm-power 2>&1 | \
+readonly measured_uncore_freq=$(sudo pcm-power --interval 1 --samples 1 2>&1 | \
   grep -m 3 "S$max_numa_node; Uncore Freq:" | \
   cut -d ' ' -f 4,5 | \
   tr -d ';' | \
