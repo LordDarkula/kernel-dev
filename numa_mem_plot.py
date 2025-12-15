@@ -120,8 +120,7 @@ def main():
     for node_id in sorted(series.keys()):
         plt.plot(ts, series[node_id], label=f"Node {node_id}")
     plt.xlabel("Time (s)")
-    plt.ylabel("Private memory (MB)")
-    plt.title(f"{args.proc} private memory per NUMA node (pid {pid})")
+    plt.ylabel("Memory Used (MB)")
     plt.legend()
     plt.tight_layout()
     plt.savefig(args.out, dpi=200)
