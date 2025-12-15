@@ -10,94 +10,84 @@ import matplotlib.pyplot as plt
 
 def get_pid(proc_name: str) -> str:
     try:
-        pid = subprocess.check_output(["pidof", proc_name], text=True).strip()
-        # If multiple PIDs exist, take the first
-        return pid.split()[0]
+        out = subprocess.check_output(["pidof", proc_name], text=True).strip()
+        return out.split()[0]  # if multiple, take first
     except subprocess.CalledProcessError:
         raise RuntimeError(f"Process '{proc_name}' not running")
 
 
 def run_numastat_p(pid: str) -> str:
-    return subprocess.check_output(
-        ["numastat", "-p", pid],
-        text=True,
-        stderr=subprocess.STDOUT,
-    )
+    return subprocess.check_output(["numastat", "-p", pid], text=True, stderr=subprocess.STDOUT)
 
 
-def parse_per_node_usage(numastat_output: str) -> dict[int, float]:
+def parse_private_mb_per_node(numastat_output: str) -> dict[int, float]:
     """
-    Parses numastat -p output and returns {node_id: used_mib}
+    Parses output like:
 
-    Example format (varies slightly by distro):
+    Per-node process memory usage (in MBs) for PID ...
+                               Node 0          Node 1           Total
+                      --------------- --------------- ---------------
+    Huge                         0.00            0.00            0.00
+    ...
+    Private                  26934.04            1.63        26935.68
 
-                       Node 0 Node 1
-    numa_hit              123   456
-    numa_miss               10    20
-    local_node            100   400
-    other_node             23    56
-    MemUsed              1024  4096
+    Returns {0: 26934.04, 1: 1.63} in MB.
     """
+    lines = [ln.rstrip() for ln in numastat_output.splitlines() if ln.strip()]
 
-    lines = [ln.strip() for ln in numastat_output.splitlines() if ln.strip()]
-
-    # Header line with Node IDs
-    header = None
+    # Find header with Node IDs
+    header_line = None
     for ln in lines:
         if re.search(r"\bNode\s+\d+\b", ln):
-            header = ln
+            header_line = ln
             break
-    if header is None:
-        raise ValueError("Could not find NUMA node header")
+    if header_line is None:
+        raise ValueError("Could not find Node header line")
 
-    node_ids = [int(x) for x in re.findall(r"\bNode\s+(\d+)\b", header)]
+    node_ids = [int(x) for x in re.findall(r"\bNode\s+(\d+)\b", header_line)]
+    if not node_ids:
+        raise ValueError("No node IDs found in header")
 
-    # Prefer MemUsed, fallback to total of local+other
-    used_vals = None
+    # Find the 'Private' row
+    private_line = None
     for ln in lines:
-        if ln.startswith("MemUsed"):
-            nums = re.findall(r"[-+]?\d*\.?\d+", ln)
-            used_vals = [float(x) for x in nums[-len(node_ids):]]
+        if ln.lstrip().startswith("Private"):
+            private_line = ln
             break
+    if private_line is None:
+        raise ValueError("Could not find 'Private' row")
 
-    if used_vals is None:
-        # Fallback: local_node + other_node
-        local = other = None
-        for ln in lines:
-            if ln.startswith("local_node"):
-                local = [float(x) for x in re.findall(r"\d+\.?\d*", ln)[-len(node_ids):]]
-            if ln.startswith("other_node"):
-                other = [float(x) for x in re.findall(r"\d+\.?\d*", ln)[-len(node_ids):]]
-        if local and other:
-            used_vals = [l + o for l, o in zip(local, other)]
-        else:
-            raise ValueError("Could not determine per-node memory usage")
+    # Extract all floats on the line. Last value is Total; preceding are per-node.
+    nums = re.findall(r"[-+]?\d*\.?\d+", private_line)
+    if len(nums) < len(node_ids):
+        raise ValueError(f"Not enough numeric columns in Private row: {private_line}")
 
-    return {node_ids[i]: used_vals[i] for i in range(len(node_ids))}
+    # The line includes per-node columns + Total. Take the first N per-node values.
+    vals = [float(x) for x in nums[: len(node_ids)]]
+
+    return {node_ids[i]: vals[i] for i in range(len(node_ids))}
 
 
 def main():
-    ap = argparse.ArgumentParser(
-        description="Monitor per-NUMA memory usage of hot_cold using numastat -p"
-    )
+    ap = argparse.ArgumentParser(description="Track per-node Private memory for hot_cold via numastat -p")
     ap.add_argument("--proc", default="hot_cold", help="Process name (default: hot_cold)")
-    ap.add_argument("--interval", type=float, default=1.0, help="Sampling interval (s)")
-    ap.add_argument("--duration", type=float, default=60.0, help="Total duration (s)")
-    ap.add_argument("--out", default="hot_cold_numa_mem.png", help="Output plot file")
-    ap.add_argument("--csv", default=None, help="Optional CSV output")
+    ap.add_argument("--interval", type=float, default=1.0, help="Sampling interval seconds (default: 1)")
+    ap.add_argument("--duration", type=float, default=60.0, help="Total duration seconds (default: 60)")
+    ap.add_argument("--out", default="hot_cold_private_per_node.png", help="Output plot filename")
+    ap.add_argument("--csv", default=None, help="Optional CSV output filename")
     args = ap.parse_args()
 
     pid = get_pid(args.proc)
-    print(f"Monitoring PID {pid} ({args.proc})")
+    print(f"Monitoring {args.proc} (PID {pid}) using numastat -p, tracking Private (MB)")
 
     start = time.time()
     ts = []
-    series = {}  # node_id -> list of used_mib
+    series: dict[int, list[float]] = {}
 
     csv_f = None
     if args.csv:
         csv_f = open(args.csv, "w", encoding="utf-8")
-        csv_f.write("t_seconds,iso_time,node,used_mib\n")
+        csv_f.write("t_seconds,iso_time,node,private_mb\n")
 
     try:
         while True:
@@ -106,17 +96,15 @@ def main():
                 break
 
             out = run_numastat_p(pid)
-            usage = parse_per_node_usage(out)
+            priv = parse_private_mb_per_node(out)
 
             ts.append(t)
-            for node_id, used in usage.items():
-                series.setdefault(node_id, []).append(used)
-                if args.csv:
-                    csv_f.write(
-                        f"{t:.3f},{datetime.now().isoformat(timespec='seconds')},{node_id},{used}\n"
-                    )
+            for node_id, mb in priv.items():
+                series.setdefault(node_id, []).append(mb)
+                if csv_f:
+                    csv_f.write(f"{t:.3f},{datetime.now().isoformat(timespec='seconds')},{node_id},{mb}\n")
 
-            # Keep series aligned
+            # Keep all lists aligned (in case a node appears later)
             for node_id in series:
                 if len(series[node_id]) < len(ts):
                     series[node_id].append(float("nan"))
@@ -129,11 +117,11 @@ def main():
 
     # Plot
     plt.figure()
-    for node_id in sorted(series):
+    for node_id in sorted(series.keys()):
         plt.plot(ts, series[node_id], label=f"Node {node_id}")
     plt.xlabel("Time (s)")
-    plt.ylabel("Memory Used (MiB)")
-    plt.title(f"NUMA memory usage of {args.proc} (pid {pid})")
+    plt.ylabel("Private memory (MB)")
+    plt.title(f"{args.proc} private memory per NUMA node (pid {pid})")
     plt.legend()
     plt.tight_layout()
     plt.savefig(args.out, dpi=200)
