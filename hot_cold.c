@@ -21,13 +21,19 @@ static void pin_to_node0(void) {
 }
 
 int main(int argc, char **argv) {
-    if (argc < 2) {
-        fprintf(stderr, "Usage: %s <MiB_to_alloc>\n", argv[0]);
+    if (argc < 3) {
+        fprintf(stderr, "Usage: %s <MiB_to_alloc> <node>\n", argv[0]);
         return 1;
     }
     long sizeMiB = atol(argv[1]);
     if (sizeMiB <= 0) {
         fprintf(stderr, "sizeMiB must be > 0\n");
+        return 1;
+    }
+
+    int node = atoi(argv[2]);
+    if (node < 0 || node > 2) {
+        fprintf(stderr, "node must be 0 or 1\n");
         return 1;
     }
 
@@ -39,7 +45,6 @@ int main(int argc, char **argv) {
     pin_to_node0();
 
     size_t bytes = (size_t)sizeMiB * 1024ULL * 1024ULL;
-    int node = 0; // LOCAL_NUMA
 
     printf("Allocating %ld MiB on node %d...\n", sizeMiB, node);
     void *buf = numa_alloc_onnode(bytes, node);
