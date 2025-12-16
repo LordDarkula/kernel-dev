@@ -36,12 +36,13 @@ To check if the module is loaded
 $ sudo lsmod | grep colloid-mon
 ```
 
-## Enable Colloid features
-Last, you must enable the features of colloid.
+## Enable Kernel features necessary for Colloid
+Last, you must enable the following features.
+> These features are provided by the base Linux kernel. Loading/unloading colloid-mon enables/disables Colloid.
 ```bash
 $ sudo swapoff -a # Disable swap
-$ echo 1 > sudo /sys/kernel/mm/numa/demotion_enabled # Enable page demotion
-$ echo 6 > sudo /proc/sys/kernel/numa_balancing # Enable colloid
+$ echo 1 | sudo tee /sys/kernel/mm/numa/demotion_enabled # Enable page demotion
+$ echo 6 | sudo tee /proc/sys/kernel/numa_balancing # Enable colloid
 ```
 
 ## Verify Colloid is working
@@ -60,7 +61,7 @@ When compiling, `-lnuma` flag is essential.
 
 To verify, you must allocate enough memory to crowd the bus.
 ```bash
-$  ./hot_cold 80000
+$  ./hot_cold 8000
 ```
 
 Watch the memory consumption of all NUMA nodes.
