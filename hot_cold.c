@@ -10,9 +10,11 @@
 #include <errno.h>
 
 static void pin_to_node0(void) {
+    // since we offline node1, we should pin to node0
     cpu_set_t cpuset;
-    CPU_ZERO(&cpuset);
+    CPU_ZERO(&cpuset); // clear CPU mask
     CPU_SET(0, &cpuset); // pin to CPU 0
+    // first arg is pid (0 of this proc)
     if (sched_setaffinity(0, sizeof(cpuset), &cpuset) != 0) {
         perror("sched_setaffinity");
     }
