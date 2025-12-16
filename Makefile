@@ -33,13 +33,18 @@ config:
 config_cloudlab:
 	mkdir -p $(BUILD_DIR)
 	$(MAKE) CC=$(CC_VER) -C $(LINUX_DIR) O=$(CURDIR)/$(BUILD_DIR) defconfig
-	cp cloudlab-v6.6.config $(BUILD_DIR)/.config
+	cp kernel-configs/cloudlab-v6.6.config $(BUILD_DIR)/.config
 	yes "" | make oldconfig
 
 colloid_config:
 	mkdir -p $(COLLOID_BUILD_DIR)
 	$(MAKE) CC=$(CC_VER) -C $(COLLOID_KERNEL_DIR) O=$(CURDIR)/$(COLLOID_BUILD_DIR) defconfig
 	yes "" | $(MAKE) CC=$(CC_VER) -C $(COLLOID_KERNEL_DIR) O=$(CURDIR)/$(COLLOID_BUILD_DIR) oldconfig
+
+colloid_config_cloudlab:
+	mkdir -p $(BUILD_DIR)
+	$(MAKE) CC=$(CC_VER) -C $(COLLOID_KERNEL_DIR) O=$(CURDIR)/$(COLLOID_BUILD_DIR) defconfig
+	cp kernel-configs/cloudlab-v6.6.config $(BUILD_DIR)/.config
 
 # Step 2: build kernel image and modules, stop at first fatal error
 kernel:
@@ -50,6 +55,9 @@ colloid_kernel:
 	mkdir -p $(COLLOID_BUILD_DIR)
 	$(MAKE) CC=$(CC_VER) -C $(COLLOID_KERNEL_DIR) O=$(CURDIR)/$(COLLOID_BUILD_DIR) -j"$(JOBS)" bzImage modules LOCALVERSION=-colloid --stop
 	$(MAKE) CC=$(CC_VER) -C $(COLLOID_KERNEL_DIR) O=$(CURDIR)/$(COLLOID_BUILD_DIR) -j"$(JOBS)" modules_install LOCALVERSION=-colloid --stop
+
+colloid_deb:
+	$(MAKE) CC=$(CC_VER) -C $(COLLOID_KERNEL_DIR) O=$(CURDIR)/$(COLLOID_BUILD_DIR) -j"$(JOBS)" bindeb-pkg --stop
 
 # Optional: clean up build artifacts
 clean:
