@@ -13,10 +13,10 @@ set -euo pipefail
 #  - numactl and stress-ng are installed
 #  - You have permissions to run stress-ng (may need sudo)
 
-PLOT_CMD="${PLOT_CMD:-python3 ./numa_mem_plot.py --interval 1 --duration 120 --csv exp1.csv --out exp1.png}"
+PLOT_CMD="${PLOT_CMD:-python3 ./numa_mem_plot.py --interval 1 --duration 180 --csv exp1.csv --out exp1.png}"
 # allocs 48 GiB on Node 1 and touched 25 % of it
 HOT_COLD_CMD="${HOT_COLD_CMD:-./hot_cold 49152 1 25}"
-WAIT_BEFORE_CONTEND="${WAIT_BEFORE_CONTEND:-30}"
+WAIT_BEFORE_CONTEND="${WAIT_BEFORE_CONTEND:-60}"
 
 # stress-ng parameters (tune as needed)
 STRESS_DURATION="${STRESS_DURATION:-60}"         # seconds
