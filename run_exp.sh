@@ -16,7 +16,7 @@ set -euo pipefail
 PLOT_CMD="${PLOT_CMD:-python3 ./numa_mem_plot.py --interval 1 --duration 120 --csv exp1.csv --out exp1.png}"
 # allocs 48 GiB on Node 1 and touched 25 % of it
 HOT_COLD_CMD="${HOT_COLD_CMD:-./hot_cold 49152 1 25}"
-WAIT_BEFORE_CONTEND="${WAIT_BEFORE_CONTEND:-45}"
+WAIT_BEFORE_CONTEND="${WAIT_BEFORE_CONTEND:-30}"
 
 # stress-ng parameters (tune as needed)
 STRESS_DURATION="${STRESS_DURATION:-60}"         # seconds
@@ -57,15 +57,15 @@ sudo swapoff -a # Disable swap
 echo 1 | sudo tee /sys/kernel/mm/numa/demotion_enabled # Enable page demotion
 echo 6 | sudo tee /proc/sys/kernel/numa_balancing # Enable colloid
 
-echo "[step] starting numa_mem_plot.py in background..."
-( exec ${PLOT_CMD} ) >"$plot_log" 2>&1 &
-plot_pid=$!
-echo "[info] numa_mem_plot.py pid=$plot_pid"
-
 echo "[step] starting hot_cold..."
 ( exec ${HOT_COLD_CMD} ) >"$hc_log" 2>&1 &
 hc_pid=$!
 echo "[info] hot_cold pid=$hc_pid"
+
+echo "[step] starting numa_mem_plot.py in background..."
+( exec ${PLOT_CMD} ) >"$plot_log" 2>&1 &
+plot_pid=$!
+echo "[info] numa_mem_plot.py pid=$plot_pid"
 
 echo "[step] waiting ${WAIT_BEFORE_CONTEND}s before introducing contention..."
 sleep "${WAIT_BEFORE_CONTEND}"
