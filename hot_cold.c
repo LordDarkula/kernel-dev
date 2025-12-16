@@ -21,8 +21,8 @@ static void pin_to_node0(void) {
 }
 
 int main(int argc, char **argv) {
-    if (argc < 3) {
-        fprintf(stderr, "Usage: %s <MiB_to_alloc> <node>\n", argv[0]);
+    if (argc < 4) {
+        fprintf(stderr, "Usage: %s <MiB_to_alloc> <node> <percent_to_touch>\n", argv[0]);
         return 1;
     }
     long sizeMiB = atol(argv[1]);
@@ -34,6 +34,12 @@ int main(int argc, char **argv) {
     int node = atoi(argv[2]);
     if (node < 0 || node > 2) {
         fprintf(stderr, "node must be 0 or 1\n");
+        return 1;
+    }
+
+    int percent = atoi(argv[3]);
+    if (percent < 0 || percent > 100) {
+        fprintf(stderr, "percent must be between 0 and 100");
         return 1;
     }
 
@@ -62,7 +68,8 @@ int main(int argc, char **argv) {
 
     printf("Now keeping only 10%% of pages hot, letting 90%% go cold...\n");
     // Continuously touch only 1/10th of the range
-    size_t hot_span = bytes / 10;
+
+    size_t hot_span = (bytes * (size_t)percent) / 100;
     while (1) {
         for (size_t offset = 0; offset < hot_span; offset += page) {
             ((char *)buf)[offset] ^= 1;
