@@ -21,8 +21,8 @@ set -euo pipefail
 PLOT_CMD="${PLOT_CMD:-python3 ./numa_mem_plot.py --interval 1 --duration 180 --csv exp1_plot/exp1.csv --out exp1_plot/exp1.png}"
 mkdir -p exp1_plot
 
-# allocs 48 GiB on Node 1 and touched 25 % of it
-HOT_COLD_CMD="${HOT_COLD_CMD:-./hot_cold 32768 1 25}"
+# allocs 32 GiB on Node 1 and touched 25 % of it
+HOT_COLD_CMD="${HOT_COLD_CMD:-./apps/hot_cold/hot_cold 32768 1 25}"
 WAIT_BEFORE_CONTEND="${WAIT_BEFORE_CONTEND:-60}"
 
 # stress-ng parameters (tune as needed)
