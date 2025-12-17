@@ -22,13 +22,13 @@ PLOT_CMD="${PLOT_CMD:-python3 ./numa_mem_plot.py --interval 1 --duration 180 --c
 mkdir -p exp1_plot
 
 # allocs 48 GiB on Node 1 and touched 25 % of it
-HOT_COLD_CMD="${HOT_COLD_CMD:-./hot_cold 49152 1 25}"
+HOT_COLD_CMD="${HOT_COLD_CMD:-./hot_cold 32768 1 25}"
 WAIT_BEFORE_CONTEND="${WAIT_BEFORE_CONTEND:-60}"
 
 # stress-ng parameters (tune as needed)
 STRESS_DURATION="${STRESS_DURATION:-60}"         # seconds
 STRESS_VM_WORKERS="${STRESS_VM_WORKERS:-4}"      # number of vm workers
-STRESS_VM_BYTES="${STRESS_VM_BYTES:-4G}"        # per-worker vm bytes (stress-ng syntax)
+STRESS_VM_BYTES="${STRESS_VM_BYTES:-2G}"        # per-worker vm bytes (stress-ng syntax)
 STRESS_EXTRA_ARGS="${STRESS_EXTRA_ARGS:---vm-keep --page-in}"
 
 LOGDIR="${LOGDIR:-./exp_logs_$(date +%Y%m%d_%H%M%S)}"

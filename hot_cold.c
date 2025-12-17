@@ -80,7 +80,7 @@ static void touch_range(char *buf, size_t bytes, size_t page) {
 int main(int argc, char **argv) {
     if (argc < 4) {
         fprintf(stderr, "Usage: %s <MiB_to_alloc> <alloc_node> <percent_hot>\n", argv[0]);
-        fprintf(stderr, "Example: %s 49152 1 25\n", argv[0]);
+        fprintf(stderr, "Example: %s 32768 1 25\n", argv[0]);
         return 1;
     }
 
