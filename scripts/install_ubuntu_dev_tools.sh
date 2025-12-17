@@ -11,11 +11,13 @@ packages=(
     libpci-dev
     autoconf
     llvm
-		debhelper
-		qemu-system
+	debhelper
+	qemu-system
+    numactl
+    stress-ng
 
 )
-sudo apt update
+sudo apt update -y
 
 for pkg in "${packages[@]}"; do
     echo "Installing $pkg..."
