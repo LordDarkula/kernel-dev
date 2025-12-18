@@ -25,7 +25,7 @@ cd ..
 # enable colloid modules
 sudo insmod tierinit/tierinit.ko
 sudo insmod kswapdrst/kswapdrst.ko
-sudo insmod colloid-mon/colloid-mon.ko | true
+sudo insmod colloid-mon/colloid-mon.ko || true
 
 # enable colloid features
 sudo swapoff -a # Disable swap
