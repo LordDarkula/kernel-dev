@@ -13,11 +13,6 @@ set -euo pipefail
 #  - numactl and stress-ng are installed
 #  - You have permissions to run stress-ng (may need sudo)
 
-# if you are trying on vanilla 6.3 with no colloid
-# sudo swapoff -a
-# echo 1 | sudo tee /sys/kernel/mm/numa/demotion_enabled # Enable page demotion
-# echo 1 | sudo tee /proc/sys/kernel/numa_balancing
-
 PLOT_CMD="${PLOT_CMD:-python3 ./numa_mem_plot.py --interval 1 --duration 180 --csv exp1_plot/exp1.csv --out exp1_plot/exp1.png}"
 mkdir -p exp1_plot
 
@@ -59,10 +54,6 @@ trap cleanup EXIT INT TERM
 echo "[info] logs: $LOGDIR"
 
 echo "[enabling] demotion and NUMA load balancing"
-
-sudo swapoff -a # Disable swap
-echo 1 | sudo tee /sys/kernel/mm/numa/demotion_enabled # Enable page demotion
-echo 6 | sudo tee /proc/sys/kernel/numa_balancing # Enable colloid
 
 echo "[step] starting hot_cold..."
 ( exec ${HOT_COLD_CMD} ) >"$hc_log" 2>&1 &
