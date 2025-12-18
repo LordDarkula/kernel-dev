@@ -5,10 +5,22 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
-# setup far tier on node 1
-chmod +x mimic_cxl_numa.sh
-sudo mimic_cxl_numa.sh
+echo "Remember to run mimic_cxl_numa.sh to offline NUMA 1."
 
-sudo insmod colloid/tpp/tierinit/tierinit.ko
-sudo insmod colloid/tpp/kswapdrst/kswapdrst.ko
-sudo insmod colloid/tpp/colloid-mon/colloid-mon.ko
+cd colloid/tpp/
+
+cd tierinit
+make
+cd ..
+
+cd kswapdrst
+make
+cd ..
+
+cd colloid-mon
+make
+cd ..
+
+sudo insmod tierinit/tierinit.ko
+sudo insmod kswapdrst/kswapdrst.ko
+sudo insmod colloid-mon/colloid-mon.ko
