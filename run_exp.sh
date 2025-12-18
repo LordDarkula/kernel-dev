@@ -6,27 +6,37 @@ set -euo pipefail
 #  2) Start hot_cold
 #  3) Wait 30s
 #  4) Start memory contention on NUMA node 0 using stress-ng
-#
-# Assumptions:
-#  - numa_mem_plot.py is in PATH or current dir
-#  - hot_cold is in PATH or current dir
-#  - numactl and stress-ng are installed
-#  - You have permissions to run stress-ng (may need sudo)
 
-PLOT_CMD="${PLOT_CMD:-python3 ./numa_mem_plot.py --interval 1 --duration 180 --csv exp1_plot/exp1.csv --out exp1_plot/exp1.png}"
-mkdir -p exp1_plot
+# -------------------------------------------------------------------
+# Experiment output directory (human-readable timestamp)
+# -------------------------------------------------------------------
+TIMESTAMP="$(date +%Y-%m-%d_%H-%M-%S)"
+EXP_DIR="experiments/exp1-${TIMESTAMP}"
+mkdir -p "${EXP_DIR}"
 
-# allocs 32 GiB on Node 1 and touched 25 % of it
+CSV_OUT="${EXP_DIR}/exp1.csv"
+PNG_OUT="${EXP_DIR}/exp1.png"
+
+PLOT_CMD="${PLOT_CMD:-python3 ./numa_mem_plot.py \
+  --interval 1 \
+  --duration 180 \
+  --csv ${CSV_OUT} \
+  --out ${PNG_OUT}}"
+
+# allocs 32 GiB on Node 1 and touches 25%
 HOT_COLD_CMD="${HOT_COLD_CMD:-./apps/hot_cold/hot_cold 32768 1 25}"
 WAIT_BEFORE_CONTEND="${WAIT_BEFORE_CONTEND:-60}"
 
-# stress-ng parameters (tune as needed)
-STRESS_DURATION="${STRESS_DURATION:-60}"         # seconds
-STRESS_VM_WORKERS="${STRESS_VM_WORKERS:-4}"      # number of vm workers
-STRESS_VM_BYTES="${STRESS_VM_BYTES:-2G}"        # per-worker vm bytes (stress-ng syntax)
+# stress-ng parameters
+STRESS_DURATION="${STRESS_DURATION:-60}"
+STRESS_VM_WORKERS="${STRESS_VM_WORKERS:-4}"
+STRESS_VM_BYTES="${STRESS_VM_BYTES:-2G}"
 STRESS_EXTRA_ARGS="${STRESS_EXTRA_ARGS:---vm-keep --page-in}"
 
-LOGDIR="${LOGDIR:-./exp_logs_$(date +%Y%m%d_%H%M%S)}"
+# -------------------------------------------------------------------
+# Logs (kept separate from experiment artifacts)
+# -------------------------------------------------------------------
+LOGDIR="${LOGDIR:-./exp_logs_${TIMESTAMP}}"
 mkdir -p "$LOGDIR"
 
 plot_log="$LOGDIR/numa_mem_plot.log"
@@ -43,7 +53,6 @@ cleanup() {
   [[ -n "${hc_pid}" ]] && kill "${hc_pid}" 2>/dev/null || true
   [[ -n "${plot_pid}" ]] && kill "${plot_pid}" 2>/dev/null || true
 
-  # Give them a moment, then force kill if needed
   sleep 1
   [[ -n "${stress_pid}" ]] && kill -9 "${stress_pid}" 2>/dev/null || true
   [[ -n "${hc_pid}" ]] && kill -9 "${hc_pid}" 2>/dev/null || true
@@ -51,9 +60,8 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-echo "[info] logs: $LOGDIR"
-
-echo "[enabling] demotion and NUMA load balancing"
+echo "[info] experiment dir: ${EXP_DIR}"
+echo "[info] logs: ${LOGDIR}"
 
 echo "[step] starting hot_cold..."
 ( exec ${HOT_COLD_CMD} ) >"$hc_log" 2>&1 &
@@ -69,8 +77,6 @@ echo "[step] waiting ${WAIT_BEFORE_CONTEND}s before introducing contention..."
 sleep "${WAIT_BEFORE_CONTEND}"
 
 echo "[step] starting stress-ng contention on NUMA node 0..."
-# Bind allocations to node 0; if you also want CPU placement, add: --cpunodebind=0
-# If stress-ng needs sudo on your setup, change "stress-ng" to "sudo stress-ng"
 ( exec numactl --cpunodebind=0 --membind=0 stress-ng \
     --vm "${STRESS_VM_WORKERS}" \
     --vm-bytes "${STRESS_VM_BYTES}" \
@@ -83,8 +89,10 @@ echo "[step] waiting for stress-ng to finish (timeout=${STRESS_DURATION}s)..."
 wait "${stress_pid}" || true
 echo "[info] stress-ng done."
 
-echo "[step] leaving hot_cold and numa_mem_plot.py running for another ${WAIT_BEFORE_CONTEND}s (optional cooldown)..."
+echo "[step] leaving hot_cold and numa_mem_plot.py running for another ${WAIT_BEFORE_CONTEND}s..."
 sleep "${WAIT_BEFORE_CONTEND}"
 
-echo "[done] experiment complete. Logs are in: $LOGDIR"
-# cleanup trap will stop background processes
+echo "[done] experiment complete."
+echo "       CSV: ${CSV_OUT}"
+echo "       PNG: ${PNG_OUT}"
+echo "       Logs: ${LOGDIR}"
