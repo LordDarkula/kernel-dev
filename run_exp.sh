@@ -19,7 +19,7 @@ PNG_OUT="${EXP_DIR}/exp1.png"
 
 PLOT_CMD="${PLOT_CMD:-python3 ./numa_mem_plot.py \
   --interval 1 \
-  --duration 180 \
+  --duration 160 \
   --csv ${CSV_OUT} \
   --out ${PNG_OUT}}"
 
