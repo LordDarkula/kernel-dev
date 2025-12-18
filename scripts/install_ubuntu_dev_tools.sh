@@ -13,6 +13,7 @@ packages=(
     llvm
 	debhelper
 	qemu-system
+    libnuma-dev
     numactl
     stress-ng
 
