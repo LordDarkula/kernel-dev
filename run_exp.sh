@@ -20,8 +20,8 @@ PNG_OUT="${EXP_DIR}/exp1.png"
 
 
 # allocs 32 GiB on Node 1 and touches 25%
-HOT_COLD_CMD="${HOT_COLD_CMD:-./apps/hot_cold/hot_cold 32768 1 25}"
-WAIT_BEFORE_CONTEND="${WAIT_BEFORE_CONTEND:-60}"
+HOT_COLD_CMD="${HOT_COLD_CMD:-./apps/hot_cold/hot_cold 51200 1 25}"
+WAIT_BEFORE_CONTEND="${WAIT_BEFORE_CONTEND:-120}"
 WAIT_AFTER_CONTEND="${WAIT_AFTER_CONTEND:-60}"
 
 # stress-ng parameters
@@ -83,8 +83,8 @@ sleep "${WAIT_BEFORE_CONTEND}"
 
 echo "[step] starting stress-ng contention on NUMA node 0..."
 ( exec numactl --cpunodebind=0 --membind=0 stress-ng \
-    --vm "${STRESS_VM_WORKERS}" \
-    --vm-bytes "${STRESS_VM_BYTES}" \
+    --stream "${STRESS_VM_WORKERS}" \
+    --stream-l3-size "${STRESS_VM_BYTES}" \
     --timeout "${STRESS_DURATION}s" \
     ${STRESS_EXTRA_ARGS} ) >"$stress_log" 2>&1 &
 stress_pid=$!
