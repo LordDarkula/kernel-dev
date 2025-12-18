@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>   // <-- add this
 
 static void die(const char *msg) {
     perror(msg);
@@ -133,12 +134,25 @@ int main(int argc, char **argv) {
            percent_hot, (double)hot_bytes / (1024.0 * 1024.0 * 1024.0),
            100 - percent_hot, (double)(bytes - hot_bytes) / (1024.0 * 1024.0 * 1024.0));
 
-    printf("Looping: touching hot set only, policy=DEFAULT (migration allowed)\n");
+    printf("Looping: touching hot set only for 60s, policy=DEFAULT (migration allowed)\n");
 
-    while (1) {
+    const time_t hot_phase_s = 60;
+    time_t start = time(NULL);
+    if (start == (time_t)-1) die("time");
+
+    while (time(NULL) - start < hot_phase_s) {
         touch_range(buf, hot_bytes, page);
         usleep(200 * 1000); // 200 ms
     }
+
+    printf("Hot phase complete. Stopping touches; keeping process alive.\n");
+
+    // Keep process alive so the mapping remains and pages can be observed/demoted.
+    while (1) {
+        pause(); // sleep until a signal arrives
+    }
+
+    return 0;
 
     // Unreachable
     // free(buf);
