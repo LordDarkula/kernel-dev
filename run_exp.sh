@@ -17,21 +17,26 @@ mkdir -p "${EXP_DIR}"
 CSV_OUT="${EXP_DIR}/exp1.csv"
 PNG_OUT="${EXP_DIR}/exp1.png"
 
-PLOT_CMD="${PLOT_CMD:-python3 ./numa_mem_plot.py \
-  --interval 1 \
-  --duration 160 \
-  --csv ${CSV_OUT} \
-  --out ${PNG_OUT}}"
+
 
 # allocs 32 GiB on Node 1 and touches 25%
 HOT_COLD_CMD="${HOT_COLD_CMD:-./apps/hot_cold/hot_cold 32768 1 25}"
-WAIT_BEFORE_CONTEND="${WAIT_BEFORE_CONTEND:-60}"
+WAIT_BEFORE_CONTEND="${WAIT_BEFORE_CONTEND:-25}"
+WAIT_AFTER_CONTEND="${WAIT_AFTER_CONTEND:-45}"
 
 # stress-ng parameters
-STRESS_DURATION="${STRESS_DURATION:-60}"
+STRESS_DURATION="${STRESS_DURATION:-30}"
 STRESS_VM_WORKERS="${STRESS_VM_WORKERS:-4}"
 STRESS_VM_BYTES="${STRESS_VM_BYTES:-2G}"
 STRESS_EXTRA_ARGS="${STRESS_EXTRA_ARGS:---vm-keep --page-in}"
+
+PLOT_DURATION=$(( WAIT_BEFORE_CONTEND + STRESS_DURATION + WAIT_AFTER_CONTEND - 10 ))
+
+PLOT_CMD="${PLOT_CMD:-python3 ./numa_mem_plot.py \
+  --interval 1 \
+  --duration ${PLOT_DURATION} \
+  --csv ${CSV_OUT} \
+  --out ${PNG_OUT}}"
 
 # -------------------------------------------------------------------
 # Logs (kept separate from experiment artifacts)
@@ -89,8 +94,8 @@ echo "[step] waiting for stress-ng to finish (timeout=${STRESS_DURATION}s)..."
 wait "${stress_pid}" || true
 echo "[info] stress-ng done."
 
-echo "[step] leaving hot_cold and numa_mem_plot.py running for another ${WAIT_BEFORE_CONTEND}s..."
-sleep "${WAIT_BEFORE_CONTEND}"
+echo "[step] leaving hot_cold and numa_mem_plot.py running for ${WAIT_AFTER_CONTEND}s..."
+sleep "${WAIT_AFTER_CONTEND}"
 
 echo "[done] experiment complete."
 echo "       CSV: ${CSV_OUT}"
