@@ -25,7 +25,10 @@ cd ..
 # enable colloid modules
 sudo insmod tierinit/tierinit.ko
 sudo insmod kswapdrst/kswapdrst.ko
-sudo insmod colloid-mon/colloid-mon.ko || true
+
+if ! sudo insmod colloid-mon/colloid-mon.ko; then
+  echo "[warn] colloid-mon already loaded or failed to load; continuing"
+fi
 
 # enable colloid features
 sudo swapoff -a # Disable swap
