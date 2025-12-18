@@ -34,3 +34,6 @@ for REPO in $REPOS; do
     git clone "$URL"
 done
 
+cd colloid
+git checkout my-colloid
+cd ..
