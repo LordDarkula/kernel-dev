@@ -16,12 +16,13 @@ mount -o remount,rw "$cg_root"
 
 /bin/echo +memory > $cg_root/cgroup.subtree_control
 
-readonly bytes_2_gib=$(echo "2^31" | bc)
-readonly bytes_4_gib=$(echo "2^32" | bc)
+
+readonly bytes_32_gib=$(echo "2^35" | bc)
+readonly bytes_64_gib=$(echo "2^36" | bc)
 
 echo "+cpuset" | tee $cg_root/cgroup.subtree_control
 
 mkdir -p $tst_cg
-echo $bytes_4_gib | tee "$tst_cg/memory.max"
-echo "0 $bytes_2_gib" | tee "$tst_cg/memory.max_per_node"
-echo "1 $bytes_2_gib" | tee "$tst_cg/memory.max_per_node"
+echo $bytes_64_gib | tee "$tst_cg/memory.max"
+echo "0 $bytes_32_gib" | tee "$tst_cg/memory.max_per_node"
+echo "1 $bytes_64_gib" | tee "$tst_cg/memory.max_per_node"
