@@ -20,7 +20,7 @@ PNG_OUT="${EXP_DIR}/exp1.png"
 
 
 # allocs 32 GiB on Node 1 and touches 25%
-HOT_COLD_CMD="${HOT_COLD_CMD:-./apps/hot_cold/hot_cold 51200 1 25}"
+HOT_COLD_CMD="${HOT_COLD_CMD:-./apps/hot_cold/hot_cold 51200 1 75}"
 WAIT_BEFORE_CONTEND="${WAIT_BEFORE_CONTEND:-120}"
 WAIT_AFTER_CONTEND="${WAIT_AFTER_CONTEND:-60}"
 
