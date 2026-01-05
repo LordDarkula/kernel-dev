@@ -4,12 +4,14 @@ set -e
 # source: https://www.if-not-true-then-false.com/2023/fedora-build-gcc/
 cd
 
-wget https://ftp.gwdg.de/pub/misc/gcc/releases/gcc-13.4.0/gcc-13.4.0.tar.xz \
-https://ftp.gwdg.de/pub/misc/gcc/releases/gcc-13.4.0/gcc-13.4.0.tar.xz.sig
+if [ ! -f gcc-13.4.0.tar.xz ]; then
+	wget https://ftp.gwdg.de/pub/misc/gcc/releases/gcc-13.4.0/gcc-13.4.0.tar.xz \
+	https://ftp.gwdg.de/pub/misc/gcc/releases/gcc-13.4.0/gcc-13.4.0.tar.xz.sig
+	tar xvf gcc-13.4.0.tar.xz
+fi
 
-tar xvf gcc-13.4.0.tar.xz
 cd gcc-13.4.0
-mkdir build
+mkdir -p build
 cd build
 
 ../configure --enable-bootstrap \
