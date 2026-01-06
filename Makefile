@@ -44,7 +44,7 @@ colloid_config:
 colloid_config_cloudlab:
 	mkdir -p $(BUILD_DIR)
 	$(MAKE) CC=$(CC_VER) -C $(COLLOID_KERNEL_DIR) O=$(CURDIR)/$(COLLOID_BUILD_DIR) defconfig
-	cp kernel-configs/cloudlab-colloid.config $(BUILD_DIR)/.config
+	cp kernel-configs/cloudlab-colloid.config $(COLLOID_BUILD_DIR)/.config
 
 # Step 2: build kernel image and modules, stop at first fatal error
 kernel:
