@@ -22,7 +22,7 @@ This repository contains scripts and configs for building Linux kernels, enablin
 - `apps/hot_cold/`: NUMA-aware workload used in experiments.
 - `run_exp.sh`: experiment runner (standard process launch).
 - `run_exp_cgroup.sh`: experiment runner that places `hot_cold` in a cgroup v2 cgroup.
-- `numa_mem_plot.py`: sampling + plotting utility (`numastat -p` based).
+- `src/numa_mem_plot/numa_mem_plot.py`: sampling + plotting utility (`numastat -p` based).
 - `scripts/`: setup/install/helper scripts.
 - `docs/`: additional notes (`BOOT_KERNEL.md`, `LOAD_COLLOID.md`, etc).
 
@@ -61,6 +61,16 @@ sudo ./scripts/install_gcc_13.sh
 chmod +x scripts/install_fedora_dev_tools.sh
 sudo ./scripts/install_fedora_dev_tools.sh
 ```
+
+### 3) Install the plotting tool package
+
+From repo root:
+
+```bash
+pip install -e .
+```
+
+This installs the CLI command `numa-mem-plot` and enables module execution via `python3 -m numa_mem_plot`.
 
 ## Build kernels
 
@@ -207,17 +217,23 @@ Common variables:
 
 ## Plotting utility
 
-`numa_mem_plot.py` tracks per-node `Private` memory from `numastat -p` and writes a PNG plot (and optional CSV).
+`numa_mem_plot` tracks per-node `Private` memory from `numastat -p` and writes a PNG plot (and optional CSV).
 
 Example:
 
 ```bash
-python3 numa_mem_plot.py \
+python3 -m numa_mem_plot \
   --proc hot_cold \
   --interval 1 \
   --duration 180 \
   --csv ./exp1.csv \
   --out ./exp1.png
+```
+
+Equivalent CLI:
+
+```bash
+numa-mem-plot --proc hot_cold --interval 1 --duration 180 --csv ./exp1.csv --out ./exp1.png
 ```
 
 ## Additional docs

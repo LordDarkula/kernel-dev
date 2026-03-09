@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "numa-mem-plot"
+version = "0.1.0"
+description = "NUMA per-node process memory tracker and plotter"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "matplotlib>=3.7",
+]
+
+[project.scripts]
+numa-mem-plot = "numa_mem_plot.numa_mem_plot:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
