@@ -42,7 +42,7 @@ colloid_config:
 	yes "" | $(MAKE) CC=$(CC_VER) -C $(COLLOID_KERNEL_DIR) O=$(CURDIR)/$(COLLOID_BUILD_DIR) oldconfig
 
 colloid_config_cloudlab:
-	mkdir -p $(BUILD_DIR)
+	mkdir -p $(COLLOID_BUILD_DIR)
 	$(MAKE) CC=$(CC_VER) -C $(COLLOID_KERNEL_DIR) O=$(CURDIR)/$(COLLOID_BUILD_DIR) defconfig
 	cp kernel-configs/cloudlab-colloid.config $(COLLOID_BUILD_DIR)/.config
 
