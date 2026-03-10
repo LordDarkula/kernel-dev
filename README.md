@@ -76,24 +76,18 @@ This installs the CLI command `numa-mem-plot` and enables module execution via `
 
 The top-level `Makefile` provides build targets for both base Linux and Colloid kernels.
 
-### Base Linux build (CloudLab config)
-
-```bash
-make config_cloudlab
-make kernel
-```
-
-### Colloid kernel build (CloudLab config)
+### Build and install Colloid kernel as Debian package (CloudLab config)
 
 ```bash
 make colloid_config_cloudlab
-make colloid_kernel
+make colloid_deb
 ```
 
-### Build and install Colloid kernel as Debian package
+In order to make the kernel visible in grub, use `dpkg` to install the image.
 
 ```bash
-make colloid_deb
+cd colloid/tpp/linux-6.3
+sudo dpkg -i linux-image-<version>.deb linux-headers-<version>.deb
 ```
 
 This generates/installable kernel package artifacts from the Colloid kernel tree.
