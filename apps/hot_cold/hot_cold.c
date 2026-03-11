@@ -11,10 +11,9 @@
 #include <time.h>
 #include <unistd.h>
 
-enum {
-    HOT_PHASE_SECONDS = 60,
-    HOT_TOUCH_SLEEP_US = 200 * 1000,
-};
+
+#define HOT_TOUCH_SLEEP_US 200 * 1000
+
 
 static void pin_to_numa_node_cpus(int node) {
     struct bitmask *cpus = numa_allocate_cpumask();
@@ -146,7 +145,7 @@ int main(int argc, char **argv) {
            percent_hot, (double)hot_bytes / (1024.0 * 1024.0 * 1024.0),
            100 - percent_hot, (double)(bytes - hot_bytes) / (1024.0 * 1024.0 * 1024.0));
 
-    printf("Looping: touching hot set only for 60s, policy=DEFAULT (migration allowed)\n");
+    printf("Looping: touching hot set\n");
 
     time_t start = time(NULL);
     if (start == (time_t)-1) {
@@ -155,15 +154,8 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    while (time(NULL) - start < HOT_PHASE_SECONDS) {
+    while (1) {
         touch_range(buf, hot_bytes, page);
         usleep(HOT_TOUCH_SLEEP_US);
-    }
-
-    printf("Hot phase complete. Stopping touches; keeping process alive.\n");
-
-    /* Keep the mapping alive so migration and demotion remain observable. */
-    while (1) {
-        pause();
     }
 }
