@@ -106,6 +106,11 @@ sudo reboot
 
 If the menu entry is under an advanced submenu, include the full path with `>` (see `docs/BOOT_KERNEL.md`).
 
+To verify that the correct kernel is running
+```bash
+uname -r
+```
+
 ## Enable runtime mode
 
 Before experiments, choose one mode:
