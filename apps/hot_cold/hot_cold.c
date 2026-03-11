@@ -8,20 +8,23 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
-#include <time.h>   // <-- add this
 
-static void die(const char *msg) {
-    perror(msg);
-    exit(1);
-}
+enum {
+    HOT_PHASE_SECONDS = 60,
+    HOT_TOUCH_SLEEP_US = 200 * 1000,
+};
 
 static void pin_to_numa_node_cpus(int node) {
     struct bitmask *cpus = numa_allocate_cpumask();
-    if (!cpus) die("numa_allocate_cpumask");
+    if (!cpus) {
+        perror("numa_allocate_cpumask");
+        exit(1);
+    }
 
     if (numa_node_to_cpus(node, cpus) != 0) {
-        // numactl/libnuma returns -1 on error, but doesn't always set errno well
+        /* libnuma returns -1 on error, but errno is not always useful here. */
         fprintf(stderr, "numa_node_to_cpus(%d) failed\n", node);
         exit(1);
     }
@@ -43,7 +46,8 @@ static void pin_to_numa_node_cpus(int node) {
     }
 
     if (sched_setaffinity(0, sizeof(set), &set) != 0) {
-        die("sched_setaffinity");
+        perror("sched_setaffinity");
+        exit(1);
     }
 
     numa_free_cpumask(cpus);
@@ -51,16 +55,20 @@ static void pin_to_numa_node_cpus(int node) {
 
 static void set_mem_policy_bind_node(int node) {
     struct bitmask *nodes = numa_allocate_nodemask();
-    if (!nodes) die("numa_allocate_nodemask");
+    if (!nodes) {
+        perror("numa_allocate_nodemask");
+        exit(1);
+    }
 
     numa_bitmask_clearall(nodes);
     numa_bitmask_setbit(nodes, node);
 
-    // maxnode is "number of bits in nodemask"
+    /* maxnode is the number of bits in the nodemask. */
     unsigned long maxnode = nodes->size;
 
     if (set_mempolicy(MPOL_BIND, nodes->maskp, maxnode) != 0) {
-        die("set_mempolicy(MPOL_BIND)");
+        perror("set_mempolicy(MPOL_BIND)");
+        exit(1);
     }
 
     numa_free_nodemask(nodes);
@@ -68,7 +76,8 @@ static void set_mem_policy_bind_node(int node) {
 
 static void reset_mem_policy_default(void) {
     if (set_mempolicy(MPOL_DEFAULT, NULL, 0) != 0) {
-        die("set_mempolicy(MPOL_DEFAULT)");
+        perror("set_mempolicy(MPOL_DEFAULT)");
+        exit(1);
     }
 }
 
@@ -109,7 +118,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    // Run the hot loop on node 0 CPUs (what you want for “promotion to node 0”)
+    /* Run the hot loop on node 0 CPUs so AutoNUMA prefers node 0. */
     pin_to_numa_node_cpus(/*node=*/0);
 
     size_t bytes = (size_t)sizeMiB * 1024ULL * 1024ULL;
@@ -117,16 +126,19 @@ int main(int argc, char **argv) {
 
     printf("Allocating %ld MiB; forcing initial placement on NUMA node %d\n", sizeMiB, alloc_node);
 
-    // Phase 1: bind allocations to alloc_node, allocate, and fully touch once
+    /* Phase 1: allocate on alloc_node and materialize the pages there. */
     set_mem_policy_bind_node(alloc_node);
 
     char *buf = (char *)malloc(bytes);
-    if (!buf) die("malloc");
+    if (!buf) {
+        perror("malloc");
+        return 1;
+    }
 
     printf("Touching 100%% once to materialize pages on node %d...\n", alloc_node);
     touch_range(buf, bytes, page);
 
-    // Phase 2: reset policy so AutoNUMA is allowed to migrate pages toward where we run (node 0)
+    /* Phase 2: restore the default policy so AutoNUMA may migrate pages. */
     reset_mem_policy_default();
 
     size_t hot_bytes = (bytes * (size_t)percent_hot) / 100;
@@ -136,25 +148,22 @@ int main(int argc, char **argv) {
 
     printf("Looping: touching hot set only for 60s, policy=DEFAULT (migration allowed)\n");
 
-    const time_t hot_phase_s = 60;
     time_t start = time(NULL);
-    if (start == (time_t)-1) die("time");
+    if (start == (time_t)-1) {
+        perror("time");
+        free(buf);
+        return 1;
+    }
 
-    while (time(NULL) - start < hot_phase_s) {
+    while (time(NULL) - start < HOT_PHASE_SECONDS) {
         touch_range(buf, hot_bytes, page);
-        usleep(200 * 1000); // 200 ms
+        usleep(HOT_TOUCH_SLEEP_US);
     }
 
     printf("Hot phase complete. Stopping touches; keeping process alive.\n");
 
-    // Keep process alive so the mapping remains and pages can be observed/demoted.
+    /* Keep the mapping alive so migration and demotion remain observable. */
     while (1) {
-        pause(); // sleep until a signal arrives
+        pause();
     }
-
-    return 0;
-
-    // Unreachable
-    // free(buf);
-    return 0;
 }
