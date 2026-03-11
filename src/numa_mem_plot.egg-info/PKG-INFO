@@ -1,0 +1,251 @@
+Metadata-Version: 2.4
+Name: numa-mem-plot
+Version: 0.1.0
+Summary: NUMA per-node process memory tracker and plotter
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: matplotlib>=3.7
+
+# Kernel Development Environment
+
+This repository contains scripts and configs for building Linux kernels, enabling TPP/Colloid memory-tiering behavior, and running reproducible NUMA memory experiments.
+
+## What this repo is for
+
+- Build and boot custom kernels (base Linux + Colloid tree).
+- Configure system knobs/modules for:
+  - `TPP` (default NUMA migration behavior)
+  - `Colloid` (module-based policy on top of kernel support)
+- Run experiment harnesses that:
+  - launch `hot_cold`
+  - generate pressure with `stress-ng`
+  - track per-node process memory with `numastat -p`
+  - save CSV + plots under timestamped experiment directories
+
+## Repository layout
+
+- `linux/`: Linux kernel source tree.
+- `colloid/`: Colloid source tree (includes `tpp/` modules + kernel tree).
+- `kernel-configs/`: pre-baked `.config` files used for CloudLab-style builds.
+- `apps/hot_cold/`: NUMA-aware workload used in experiments.
+- `run_exp.sh`: experiment runner (standard process launch).
+- `run_exp_cgroup.sh`: experiment runner that places `hot_cold` in a cgroup v2 cgroup.
+- `src/numa_mem_plot/numa_mem_plot.py`: sampling + plotting utility (`numastat -p` based).
+- `scripts/`: setup/install/helper scripts.
+- `docs/`: additional notes (`BOOT_KERNEL.md`, `LOAD_COLLOID.md`, etc).
+
+## Quick start
+
+### 1) Clone required repositories
+
+```bash
+chmod +x scripts/clone_repos.sh
+# Use 'ssh' if your GitHub SSH access is configured; otherwise use 'https'.
+./scripts/clone_repos.sh ssh
+```
+
+This clones:
+- `LordDarkula/linux`
+- `LordDarkula/colloid` (then checks out branch `my-colloid`)
+- `matte21/tinker-linux`
+
+### 2) Install dependencies
+
+#### Ubuntu/Debian
+
+```bash
+chmod +x scripts/install_ubuntu_dev_tools.sh
+sudo ./scripts/install_ubuntu_dev_tools.sh
+```
+
+#### Fedora
+
+Fedora flow is split: build/install GCC 13.4 first, then install other build tools.
+
+```bash
+chmod +x scripts/install_gcc_13.sh
+sudo ./scripts/install_gcc_13.sh
+
+chmod +x scripts/install_fedora_dev_tools.sh
+sudo ./scripts/install_fedora_dev_tools.sh
+```
+
+### 3) Install the plotting tool package
+
+From repo root:
+
+```bash
+pip install -e .
+```
+
+This installs the CLI command `numa-mem-plot` and enables module execution via `python3 -m numa_mem_plot`.
+
+## Build kernels
+
+The top-level `Makefile` provides build targets for both base Linux and Colloid kernels.
+
+### Base Linux build (CloudLab config)
+
+```bash
+make config_cloudlab
+make kernel
+```
+
+### Colloid kernel build (CloudLab config)
+
+```bash
+make colloid_config_cloudlab
+make colloid_kernel
+```
+
+### Build and install Colloid kernel as Debian package
+
+```bash
+make colloid_deb
+```
+
+This generates/installable kernel package artifacts from the Colloid kernel tree.
+
+## Booting kernels
+
+For GRUB-based systems, follow `docs/BOOT_KERNEL.md`.
+
+Quick reference:
+
+```bash
+grep "menuentry" /boot/grub/grub.cfg
+sudo grub-reboot "Ubuntu, with Linux 6.3.0-colloid"
+sudo reboot
+```
+
+If the menu entry is under an advanced submenu, include the full path with `>` (see `docs/BOOT_KERNEL.md`).
+
+## Enable runtime mode
+
+Before experiments, choose one mode:
+
+### Enable TPP mode
+
+```bash
+chmod +x scripts/enable_tpp.sh
+sudo ./scripts/enable_tpp.sh
+```
+
+This script disables swap and sets:
+- `/sys/kernel/mm/numa/demotion_enabled = 1`
+- `/proc/sys/kernel/numa_balancing = 1`
+
+### Enable Colloid mode
+
+```bash
+chmod +x scripts/enable_colloid.sh
+sudo ./scripts/enable_colloid.sh
+```
+
+This script:
+- builds Colloid modules in `colloid/tpp/`
+- loads `tierinit`, `kswapdrst`, and `colloid-mon`
+- disables swap
+- sets:
+  - `/sys/kernel/mm/numa/demotion_enabled = 1`
+  - `/proc/sys/kernel/numa_balancing = 6`
+
+Important: run `scripts/mimic_cxl_numa.sh` before enabling Colloid to emulate a slower far memory NUMA tier (as noted in `docs/LOAD_COLLOID.md`).
+
+## Build workload binary
+
+`hot_cold` lives in `apps/hot_cold/` and links against `libnuma`.
+
+```bash
+make -C apps/hot_cold
+```
+
+Usage:
+
+```bash
+./apps/hot_cold/hot_cold <MiB_to_alloc> <alloc_node> <percent_hot>
+# Example
+./apps/hot_cold/hot_cold 51200 1 75
+```
+
+Behavior summary:
+- allocates on `alloc_node`
+- materializes pages on that node
+- resets policy to default
+- repeatedly touches only hot subset for ~60s
+- then idles so migration/demotion behavior can be observed
+
+## Running experiments
+
+Both runners produce timestamped outputs:
+- `experiments/exp1-YYYY-MM-DD_HH-MM-SS/exp1.csv`
+- `experiments/exp1-YYYY-MM-DD_HH-MM-SS/exp1.png`
+- logs in `exp_logs_YYYY-MM-DD_HH-MM-SS/`
+
+### Standard runner
+
+```bash
+chmod +x run_exp.sh
+./run_exp.sh
+```
+
+### Cgroup runner (cgroup v2)
+
+```bash
+chmod +x run_exp_cgroup.sh
+./run_exp_cgroup.sh
+```
+
+This runner places `hot_cold` into `/sys/fs/cgroup/hot-cold-cg`.
+
+## Experiment tuning knobs
+
+Both runners support environment variable overrides:
+
+```bash
+HOT_COLD_CMD="./apps/hot_cold/hot_cold 32768 1 25" \
+WAIT_BEFORE_CONTEND=90 \
+STRESS_DURATION=120 \
+STRESS_VM_WORKERS=4 \
+STRESS_VM_BYTES=4G \
+WAIT_AFTER_CONTEND=60 \
+./run_exp.sh
+```
+
+Common variables:
+- `HOT_COLD_CMD`
+- `WAIT_BEFORE_CONTEND`
+- `WAIT_AFTER_CONTEND`
+- `STRESS_DURATION`
+- `STRESS_VM_WORKERS`
+- `STRESS_VM_BYTES`
+- `STRESS_EXTRA_ARGS`
+- `PLOT_CMD`
+- `LOGDIR`
+
+## Plotting utility
+
+`numa_mem_plot` tracks per-node `Private` memory from `numastat -p` and writes a PNG plot (and optional CSV).
+
+Example:
+
+```bash
+python3 -m numa_mem_plot \
+  --proc hot_cold \
+  --interval 1 \
+  --duration 180 \
+  --csv ./exp1.csv \
+  --out ./exp1.png
+```
+
+Equivalent CLI:
+
+```bash
+numa-mem-plot --proc hot_cold --interval 1 --duration 180 --csv ./exp1.csv --out ./exp1.png
+```
+
+## Additional docs
+
+- `docs/BOOT_KERNEL.md`: GRUB boot selection for alternate kernels.
+- `docs/LOAD_COLLOID.md`: deeper Colloid setup/verification workflow.
+- `docs/KERNEL_MOD.md`: basic kernel module load/unload commands.

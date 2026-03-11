@@ -1,0 +1,11 @@
+README.md
+pyproject.toml
+src/numa_mem_plot/__init__.py
+src/numa_mem_plot/__main__.py
+src/numa_mem_plot/numa_mem_plot.py
+src/numa_mem_plot.egg-info/PKG-INFO
+src/numa_mem_plot.egg-info/SOURCES.txt
+src/numa_mem_plot.egg-info/dependency_links.txt
+src/numa_mem_plot.egg-info/entry_points.txt
+src/numa_mem_plot.egg-info/requires.txt
+src/numa_mem_plot.egg-info/top_level.txt

@@ -1,0 +1,2 @@
+[console_scripts]
+numa-mem-plot = numa_mem_plot.numa_mem_plot:main
