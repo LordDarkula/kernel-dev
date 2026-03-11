@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Experimental runner:
-#  1) Start numa_mem_plot.py in background
+#  1) Start numa_mem_plot in background
 #  2) Start hot_cold
 #  3) Wait 30s
 #  4) Start memory contention on NUMA node 0 using stress-ng
@@ -17,10 +17,11 @@ mkdir -p "${EXP_DIR}"
 CSV_OUT="${EXP_DIR}/exp1.csv"
 PNG_OUT="${EXP_DIR}/exp1.png"
 
+HOT_COLD_MEM_MB="${HOT_COLD_MEM_MB:-1024}"
+HOT_COLD_NUMA_NODE="${HOT_COLD_NUMA_NODE:-1}"
+HOT_COLD_TOUCH_PERCENT="${HOT_COLD_TOUCH_PERCENT:-75}"
+HOT_COLD_CMD="${HOT_COLD_CMD:-./apps/hot_cold/hot_cold ${HOT_COLD_MEM_MB} ${HOT_COLD_NUMA_NODE} ${HOT_COLD_TOUCH_PERCENT}}"
 
-
-# allocs 32 GiB on Node 1 and touches 25%
-HOT_COLD_CMD="${HOT_COLD_CMD:-./apps/hot_cold/hot_cold 51200 1 75}"
 WAIT_BEFORE_CONTEND="${WAIT_BEFORE_CONTEND:-120}"
 WAIT_AFTER_CONTEND="${WAIT_AFTER_CONTEND:-60}"
 
@@ -32,7 +33,7 @@ STRESS_EXTRA_ARGS="${STRESS_EXTRA_ARGS:---vm-keep --page-in}"
 
 PLOT_DURATION=$(( WAIT_BEFORE_CONTEND + STRESS_DURATION + WAIT_AFTER_CONTEND - 10 ))
 
-PLOT_CMD="${PLOT_CMD:-python3 ./numa_mem_plot.py \
+PLOT_CMD="${PLOT_CMD:-python3 -m numa_mem_plot \
   --interval 1 \
   --duration ${PLOT_DURATION} \
   --csv ${CSV_OUT} \
@@ -73,10 +74,10 @@ echo "[step] starting hot_cold..."
 hc_pid=$!
 echo "[info] hot_cold pid=$hc_pid"
 
-echo "[step] starting numa_mem_plot.py in background..."
+echo "[step] starting numa_mem_plot in background..."
 ( exec ${PLOT_CMD} ) >"$plot_log" 2>&1 &
 plot_pid=$!
-echo "[info] numa_mem_plot.py pid=$plot_pid"
+echo "[info] numa_mem_plot pid=$plot_pid"
 
 echo "[step] waiting ${WAIT_BEFORE_CONTEND}s before introducing contention..."
 sleep "${WAIT_BEFORE_CONTEND}"
@@ -94,7 +95,7 @@ echo "[step] waiting for stress-ng to finish (timeout=${STRESS_DURATION}s)..."
 wait "${stress_pid}" || true
 echo "[info] stress-ng done."
 
-echo "[step] leaving hot_cold and numa_mem_plot.py running for ${WAIT_AFTER_CONTEND}s..."
+echo "[step] leaving hot_cold and numa_mem_plot running for ${WAIT_AFTER_CONTEND}s..."
 sleep "${WAIT_AFTER_CONTEND}"
 
 echo "[done] experiment complete."
