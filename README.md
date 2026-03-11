@@ -119,7 +119,7 @@ Before experiments, choose one mode:
 
 ```bash
 chmod +x scripts/enable_tpp.sh
-sudo ./scripts/enable_tpp.sh
+./scripts/enable_tpp.sh
 ```
 
 This script disables swap and sets:
@@ -156,7 +156,7 @@ Usage:
 ```bash
 ./apps/hot_cold/hot_cold <MiB_to_alloc> <alloc_node> <percent_hot>
 # Example
-./apps/hot_cold/hot_cold 51200 1 75
+./apps/hot_cold/hot_cold 1024 1 75
 ```
 
 Behavior summary:
@@ -176,8 +176,8 @@ Both runners produce timestamped outputs:
 ### Standard runner
 
 ```bash
-chmod +x run_exp.sh
-./run_exp.sh
+chmod +x scripts/run_migration_experiment.sh
+./scripts/run_migration_experiment.sh
 ```
 
 ### Cgroup runner (cgroup v2)
