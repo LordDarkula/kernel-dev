@@ -64,10 +64,11 @@ sudo ./scripts/install_fedora_dev_tools.sh
 
 ### 3) Install the plotting tool package
 
-From repo root:
+You must install Python and setup a virtualenv, which is done by another script.
 
 ```bash
-pip install -e .
+chmod +x scripts/install/setup_python_ubuntu.sh
+./scripts/install/setup_python_ubuntu.sh
 ```
 
 This installs the CLI command `numa-mem-plot` and enables module execution via `python3 -m numa_mem_plot`.
