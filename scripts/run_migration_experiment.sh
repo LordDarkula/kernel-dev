@@ -11,7 +11,7 @@ set -euo pipefail
 # Experiment output directory (human-readable timestamp)
 # -------------------------------------------------------------------
 TIMESTAMP="$(date +%Y-%m-%d_%H-%M-%S)"
-EXP_DIR="experiments/exp1-${TIMESTAMP}"
+EXP_DIR="experiments/numa_migration_experiment-${TIMESTAMP}"
 mkdir -p "${EXP_DIR}"
 
 CSV_OUT="${EXP_DIR}/exp1.csv"
@@ -31,7 +31,7 @@ STRESS_VM_WORKERS="${STRESS_VM_WORKERS:-4}"
 STRESS_VM_BYTES="${STRESS_VM_BYTES:-4G}"
 STRESS_EXTRA_ARGS="${STRESS_EXTRA_ARGS:---vm-keep --page-in}"
 
-PLOT_DURATION=$(( WAIT_BEFORE_CONTEND + STRESS_DURATION + WAIT_AFTER_CONTEND - 10 ))
+PLOT_DURATION=$(( WAIT_BEFORE_CONTEND + STRESS_DURATION + WAIT_AFTER_CONTEND - 1 ))
 
 PLOT_CMD="${PLOT_CMD:-python3 -m numa_mem_plot \
   --interval 1 \
@@ -52,6 +52,11 @@ stress_log="$LOGDIR/stress_ng.log"
 plot_pid=""
 hc_pid=""
 stress_pid=""
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "[error] python3 is not installed. Install Python and rerun the experiment."
+  exit 1
+fi
 
 cleanup() {
   echo "[cleanup] stopping background processes..."
@@ -78,6 +83,15 @@ echo "[step] starting numa_mem_plot in background..."
 ( exec ${PLOT_CMD} ) >"$plot_log" 2>&1 &
 plot_pid=$!
 echo "[info] numa_mem_plot pid=$plot_pid"
+
+sleep 1
+if ! kill -0 "${plot_pid}" 2>/dev/null; then
+  if ! wait "${plot_pid}"; then
+    echo "[error] failed to start numa_mem_plot. Install `numa_mem_plot` and rerun the experiment."
+    echo "[error] see ${plot_log} for details."
+    exit 1
+  fi
+fi
 
 echo "[step] waiting ${WAIT_BEFORE_CONTEND}s before introducing contention..."
 sleep "${WAIT_BEFORE_CONTEND}"
