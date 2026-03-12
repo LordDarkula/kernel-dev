@@ -177,8 +177,8 @@ Both runners produce timestamped outputs:
 ### Standard runner
 
 ```bash
-chmod +x scripts/run_migration_experiment.sh
-./scripts/run_migration_experiment.sh
+chmod +x scripts/run_contention_experiment.sh
+./scripts/run_contention_experiment.sh
 ```
 
 ### Cgroup runner (cgroup v2)
