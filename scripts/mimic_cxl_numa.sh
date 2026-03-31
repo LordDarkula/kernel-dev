@@ -71,7 +71,31 @@ for sample in $measured_uncore_freq; do
 done
 
 # Now, offline all the CPUs in the emulated NUMA node.
+skipped_cpus=()
+offlined_cpus=()
+
 for id in $cpus_to_offline; do
-	echo 0 | sudo tee /sys/devices/system/cpu/cpu$id/online
-	echo "offlined cpu$id on NUMA $target_numa_node"
+  cpu_online_path="/sys/devices/system/cpu/cpu$id/online"
+
+  if [[ ! -e "$cpu_online_path" ]]; then
+    echo "skipping cpu$id on NUMA $target_numa_node: no online control file (likely not hotpluggable)"
+    skipped_cpus+=("$id")
+    continue
+  fi
+
+  if echo 0 | sudo tee "$cpu_online_path" >/dev/null; then
+    echo "offlined cpu$id on NUMA $target_numa_node"
+    offlined_cpus+=("$id")
+  else
+    echo "skipping cpu$id on NUMA $target_numa_node: kernel refused to offline it" >&2
+    skipped_cpus+=("$id")
+  fi
 done
+
+if (( ${#offlined_cpus[@]} == 0 )); then
+  echo "Warning: no CPUs were offlined on NUMA $target_numa_node." >&2
+fi
+
+if (( ${#skipped_cpus[@]} > 0 )); then
+  echo "Skipped CPUs on NUMA $target_numa_node: ${skipped_cpus[*]}" >&2
+fi
