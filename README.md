@@ -114,7 +114,14 @@ uname -r
 
 ## Enable runtime mode
 
-Before experiments, choose one mode:
+If you want to emulate a slower far-memory NUMA tier before enabling Colloid, run:
+
+```bash
+chmod +x scripts/mimic_cxl_numa.shS
+sudo ./scripts/mimic_cxl_numa.sh <numa-node>
+```
+
+Use the NUMA node index you want to turn into the slow-memory tier. Avoid targeting Node 0 because the bootable CPU (CPU0) is generally on Node 0 and it cannot be offlined.
 
 ### Enable TPP mode
 
@@ -141,8 +148,6 @@ This script:
 - sets:
   - `/sys/kernel/mm/numa/demotion_enabled = 1`
   - `/proc/sys/kernel/numa_balancing = 6`
-
-Important: run `scripts/mimic_cxl_numa.sh` before enabling Colloid to emulate a slower far memory NUMA tier (as noted in `docs/LOAD_COLLOID.md`).
 
 ## Build workload binary
 
