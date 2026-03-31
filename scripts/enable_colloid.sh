@@ -3,7 +3,7 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
-echo "Remember to run mimic_cxl_numa.sh to offline NUMA 1."
+echo "Remember to run offline_cpus_on_numa_node.sh <numa-node> before enabling Colloid."
 
 cd colloid/tpp/
 

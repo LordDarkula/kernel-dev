@@ -117,8 +117,8 @@ uname -r
 If you want to emulate a slower far-memory NUMA tier before enabling Colloid, run:
 
 ```bash
-chmod +x scripts/mimic_cxl_numa.shS
-sudo ./scripts/mimic_cxl_numa.sh <numa-node>
+chmod +x scripts/offline_cpus_on_numa_node.sh
+sudo ./scripts/offline_cpus_on_numa_node.sh <numa-node>
 ```
 
 Use the NUMA node index you want to turn into the slow-memory tier. Avoid targeting Node 0 because the bootable CPU (CPU0) is generally on Node 0 and it cannot be offlined.

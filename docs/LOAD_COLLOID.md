@@ -3,8 +3,8 @@
 After booting the colloid kernel, you must do the following steps in order to get Colloid running.
 
 ## Offlining CPUs on Far Tier
-Run the script `mimic_cxl_numa.sh` which offlines all the CPUs on the highest NUMA node (index 1 on 2 NUMA machines)
-to imitate the slower `FAR_MEM` tier.
+Run the script `offline_cpus_on_numa_node.sh <numa-node>` to offline the CPUs on the NUMA node you want to use as the slower tier.
+to imitate the slower `FAR_MEM` tier. Avoid targeting Node 0 because the bootable CPU (CPU0) is generally on Node 0 and it cannot be offlined.
 
 > This step must be done before loading `tierinit` so it can collect latency stats correctly
 

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Experimental runner:
-#  1) Start numa_mem_plot.py in background
+#  1) Start numa_mem_plot in background
 #  2) Start hot_cold inside cgroup hot-cold-cg (cgroup v2)
 #  3) Wait WAIT_BEFORE_CONTEND
 #  4) Start memory contention on NUMA node 0 using stress-ng
@@ -37,7 +37,7 @@ if (( PLOT_DURATION < 1 )); then
   PLOT_DURATION=1
 fi
 
-PLOT_CMD="${PLOT_CMD:-python3 ./numa_mem_plot.py \
+PLOT_CMD="${PLOT_CMD:-python3 -m numa_mem_plot \
   --interval 1 \
   --duration ${PLOT_DURATION} \
   --csv ${CSV_OUT} \
@@ -136,10 +136,10 @@ echo "[step] starting hot_cold in cgroup..."
 hc_pid="$(start_hot_cold_in_cgroup)"
 echo "[info] hot_cold pid=$hc_pid"
 
-echo "[step] starting numa_mem_plot.py in background..."
+echo "[step] starting numa_mem_plot in background..."
 ( exec ${PLOT_CMD} ) >"$plot_log" 2>&1 &
 plot_pid=$!
-echo "[info] numa_mem_plot.py pid=$plot_pid"
+echo "[info] numa_mem_plot pid=$plot_pid"
 
 echo "[step] waiting ${WAIT_BEFORE_CONTEND}s before introducing contention..."
 sleep "${WAIT_BEFORE_CONTEND}"
@@ -158,7 +158,7 @@ echo "[step] waiting for stress-ng to finish (timeout=${STRESS_DURATION}s)..."
 wait "${stress_pid}" || true
 echo "[info] stress-ng done."
 
-echo "[step] leaving hot_cold and numa_mem_plot.py running for ${WAIT_AFTER_CONTEND}s..."
+echo "[step] leaving hot_cold and numa_mem_plot running for ${WAIT_AFTER_CONTEND}s..."
 sleep "${WAIT_AFTER_CONTEND}"
 
 echo "[done] experiment complete."
