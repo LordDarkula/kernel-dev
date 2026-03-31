@@ -4,6 +4,33 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+if [[ $# -ne 1 ]]; then
+  echo "Usage: $0 <numa-node>" >&2
+  exit 1
+fi
+
+if ! [[ "$1" =~ ^[0-9]+$ ]]; then
+  echo "Error: NUMA node must be a non-negative integer, got '$1'." >&2
+  exit 1
+fi
+
+readonly target_numa_node="$1"
+readonly numa_node_count=$(lscpu | awk -F: '/NUMA node\(s\)/ {gsub(/ /, "", $2); print $2}')
+
+if [[ -z "$numa_node_count" ]]; then
+  echo "Error: failed to determine the number of NUMA nodes on this system." >&2
+  exit 1
+fi
+
+if (( numa_node_count == 1 )); then
+  echo "Warning: this system has only one NUMA node. Offlining its CPUs may make the system unusable." >&2
+fi
+
+if (( target_numa_node >= numa_node_count )); then
+  echo "Error: NUMA node $target_numa_node does not exist on this system. Valid NUMA nodes are 0 through $((numa_node_count - 1))." >&2
+  exit 1
+fi
+
 echo "Downloading dependencies ..."
 
 sudo apt-get update -y
@@ -11,8 +38,12 @@ sudo apt-get install -y msr-tools pcm
 sudo modprobe msr
 
 # Get all CPUs on the NUMA that'll emulate slow CXL mem.
-readonly max_numa_node=$(lscpu | grep -i "NUMA node(s)" | awk  '{print $3 - 1}')
-readonly cpus_to_offline=$(lscpu --parse=cpu,node | grep ,$max_numa_node$ | cut -d , -f 1)
+readonly cpus_to_offline=$(lscpu --parse=cpu,node | grep ",$target_numa_node$" | cut -d , -f 1)
+
+if [[ -z "$cpus_to_offline" ]]; then
+  echo "Error: no CPUs were found for NUMA node $target_numa_node." >&2
+  exit 1
+fi
 
 readonly uncore_freq_reg="0x620"
 readonly low_uncore_freq="0x707"
@@ -28,13 +59,13 @@ sleep 3
 
 # Safety check to ensure that the new freq has been applied.
 readonly measured_uncore_freq=$(sudo pcm-power --interval 1 --samples 1 2>&1 | \
-  grep -m 3 "S$max_numa_node; Uncore Freq:" | \
+  grep -m 3 "S$target_numa_node; Uncore Freq:" | \
   cut -d ' ' -f 4,5 | \
   tr -d ';' | \
   tr -d ' ')
 for sample in $measured_uncore_freq; do
 	if [[ "$sample" != "0.70Ghz" ]]; then
-    echo "Fatal error: expected uncore frequency for NUMA node $max_numa_node to be 0.70Ghz, got $sample"
+    echo "Fatal error: expected uncore frequency for NUMA node $target_numa_node to be 0.70Ghz, got $sample"
     exit 1
   fi
 done
@@ -42,5 +73,5 @@ done
 # Now, offline all the CPUs in the emulated NUMA node.
 for id in $cpus_to_offline; do
 	echo 0 | sudo tee /sys/devices/system/cpu/cpu$id/online
-	echo "offlined cpu$id on NUMA $max_numa_node"
+	echo "offlined cpu$id on NUMA $target_numa_node"
 done
