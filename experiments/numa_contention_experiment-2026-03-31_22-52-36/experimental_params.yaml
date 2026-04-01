@@ -18,3 +18,4 @@ stress_vm_bytes: "2G"
 stress_extra_args: "--vm-keep --page-in"
 plot_duration: 129
 plot_cmd: "python3 -m numa_mem_plot   --interval 1   --duration 129   --csv experiments/numa_contention_experiment-2026-03-31_22-52-36/memory_usage.csv   --out experiments/numa_contention_experiment-2026-03-31_22-52-36/memory_usage.png"
+mode: tpp
