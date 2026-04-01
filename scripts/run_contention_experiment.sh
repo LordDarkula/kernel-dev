@@ -11,7 +11,7 @@ set -euo pipefail
 # Experiment output directory (human-readable timestamp)
 # -------------------------------------------------------------------
 TIMESTAMP="$(date +%Y-%m-%d_%H-%M-%S)"
-EXP_DIR="experiments/numa_migration_experiment-${TIMESTAMP}"
+EXP_DIR="experiments/numa_contention_experiment-${TIMESTAMP}"
 mkdir -p "${EXP_DIR}"
 
 CSV_OUT="${EXP_DIR}/memory_usage.csv"
@@ -28,7 +28,7 @@ WAIT_AFTER_CONTEND="${WAIT_AFTER_CONTEND:-60}"
 
 # stress-ng parameters
 STRESS_DURATION="${STRESS_DURATION:-10}"
-STRESS_VM_WORKERS="${STRESS_VM_WORKERS:-2}"
+STRESS_VM_WORKERS="${STRESS_VM_WORKERS:-4}"
 STRESS_VM_BYTES="${STRESS_VM_BYTES:-2G}"
 STRESS_EXTRA_ARGS="${STRESS_EXTRA_ARGS:---vm-keep --page-in}"
 
