@@ -1,0 +1,14 @@
+timestamp: "2026-03-31_20-12-09"
+experiment_dir: "experiments/numa_baseline_experiment-2026-03-31_20-12-09"
+csv_out: "experiments/numa_baseline_experiment-2026-03-31_20-12-09/memory_usage.csv"
+png_out: "experiments/numa_baseline_experiment-2026-03-31_20-12-09/memory_usage.png"
+logdir: "./exp_logs_2026-03-31_20-12-09"
+plot_log: "./exp_logs_2026-03-31_20-12-09/numa_mem_plot.log"
+hot_cold_log: "./exp_logs_2026-03-31_20-12-09/hot_cold.log"
+hot_cold_mem_mb: 1024
+slow_numa_node: 1
+hot_cold_touch_percent: 25
+hot_cold_cmd: "./apps/hot_cold/hot_cold 1024 1 25"
+baseline_duration: 20
+plot_duration: 19
+plot_cmd: "python3 -m numa_mem_plot   --interval 1   --duration 19   --csv experiments/numa_baseline_experiment-2026-03-31_20-12-09/memory_usage.csv   --out experiments/numa_baseline_experiment-2026-03-31_20-12-09/memory_usage.png"
