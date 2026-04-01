@@ -13,9 +13,9 @@ TIMESTAMP="$(date +%Y-%m-%d_%H-%M-%S)"
 EXP_DIR="experiments/numa_baseline_experiment-${TIMESTAMP}"
 mkdir -p "${EXP_DIR}"
 
-CSV_OUT="${EXP_DIR}/exp1.csv"
-PNG_OUT="${EXP_DIR}/exp1.png"
-PARAMS_OUT="${EXP_DIR}/params.yaml"
+CSV_OUT="${EXP_DIR}/memory_usage.csv"
+PNG_OUT="${EXP_DIR}/memory_usage.png"
+PARAMS_OUT="${EXP_DIR}/experimental_params.yaml"
 
 HOT_COLD_MEM_MB="${HOT_COLD_MEM_MB:-1024}"
 SLOW_NUMA_NODE="${SLOW_NUMA_NODE:-1}"
