@@ -18,9 +18,9 @@ PNG_OUT="${EXP_DIR}/exp1.png"
 PARAMS_OUT="${EXP_DIR}/params.yaml"
 
 HOT_COLD_MEM_MB="${HOT_COLD_MEM_MB:-1024}"
-HOT_COLD_NUMA_NODE="${HOT_COLD_NUMA_NODE:-1}"
-HOT_COLD_TOUCH_PERCENT="${HOT_COLD_TOUCH_PERCENT:-75}"
-HOT_COLD_CMD="${HOT_COLD_CMD:-./apps/hot_cold/hot_cold ${HOT_COLD_MEM_MB} ${HOT_COLD_NUMA_NODE} ${HOT_COLD_TOUCH_PERCENT}}"
+SLOW_NUMA_NODE="${SLOW_NUMA_NODE:-1}"
+HOT_COLD_TOUCH_PERCENT="${HOT_COLD_TOUCH_PERCENT:-25}"
+HOT_COLD_CMD="${HOT_COLD_CMD:-./apps/hot_cold/hot_cold ${HOT_COLD_MEM_MB} ${SLOW_NUMA_NODE} ${HOT_COLD_TOUCH_PERCENT}}"
 
 BASELINE_DURATION="${BASELINE_DURATION:-20}"
 
@@ -60,7 +60,7 @@ logdir: $(yaml_quote "${LOGDIR}")
 plot_log: $(yaml_quote "${plot_log}")
 hot_cold_log: $(yaml_quote "${hc_log}")
 hot_cold_mem_mb: ${HOT_COLD_MEM_MB}
-hot_cold_numa_node: ${HOT_COLD_NUMA_NODE}
+slow_numa_node: ${SLOW_NUMA_NODE}
 hot_cold_touch_percent: ${HOT_COLD_TOUCH_PERCENT}
 hot_cold_cmd: $(yaml_quote "${HOT_COLD_CMD}")
 baseline_duration: ${BASELINE_DURATION}
