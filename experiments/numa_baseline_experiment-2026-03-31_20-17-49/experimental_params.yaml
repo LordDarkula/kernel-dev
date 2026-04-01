@@ -12,3 +12,4 @@ hot_cold_cmd: "./apps/hot_cold/hot_cold 1024 1 25"
 baseline_duration: 60
 plot_duration: 59
 plot_cmd: "python3 -m numa_mem_plot   --interval 1   --duration 59   --csv experiments/numa_baseline_experiment-2026-03-31_20-17-49/memory_usage.csv   --out experiments/numa_baseline_experiment-2026-03-31_20-17-49/memory_usage.png"
+mode: "tpp"
