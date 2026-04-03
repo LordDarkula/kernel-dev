@@ -7,6 +7,19 @@ set -euo pipefail
 #  3) Wait 30s
 #  4) Start memory contention on NUMA node 0 using stress-ng
 
+if [[ $# -ne 1 ]]; then
+  echo "Usage: $0 <kernel_mode>" >&2
+  echo "  kernel_mode must be one of: tpp, colloid" >&2
+  exit 1
+fi
+
+readonly KERNEL_MODE="$1"
+
+if [[ "${KERNEL_MODE}" != "tpp" && "${KERNEL_MODE}" != "colloid" ]]; then
+  echo "[error] invalid kernel_mode '${KERNEL_MODE}'. Expected 'tpp' or 'colloid'." >&2
+  exit 1
+fi
+
 # -------------------------------------------------------------------
 # Experiment output directory (human-readable timestamp)
 # -------------------------------------------------------------------
@@ -67,6 +80,7 @@ timestamp: $(yaml_quote "${TIMESTAMP}")
 experiment_dir: $(yaml_quote "${EXP_DIR}")
 csv_out: $(yaml_quote "${CSV_OUT}")
 png_out: $(yaml_quote "${PNG_OUT}")
+kernel_mode: $(yaml_quote "${KERNEL_MODE}")
 logdir: $(yaml_quote "${LOGDIR}")
 plot_log: $(yaml_quote "${plot_log}")
 hot_cold_log: $(yaml_quote "${hc_log}")
