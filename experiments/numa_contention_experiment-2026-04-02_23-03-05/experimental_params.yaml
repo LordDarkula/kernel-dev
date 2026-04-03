@@ -1,0 +1,21 @@
+timestamp: "2026-04-02_23-03-05"
+experiment_dir: "experiments/numa_contention_experiment-2026-04-02_23-03-05"
+csv_out: "experiments/numa_contention_experiment-2026-04-02_23-03-05/memory_usage.csv"
+png_out: "experiments/numa_contention_experiment-2026-04-02_23-03-05/memory_usage.png"
+kernel_mode: "colloid"
+logdir: "./exp_logs_2026-04-02_23-03-05"
+plot_log: "./exp_logs_2026-04-02_23-03-05/numa_mem_plot.log"
+hot_cold_log: "./exp_logs_2026-04-02_23-03-05/hot_cold.log"
+stress_log: "./exp_logs_2026-04-02_23-03-05/stress_ng.log"
+hot_cold_mem_mb: 1024 * 16
+slow_numa_node: 1
+hot_cold_touch_percent: 25
+hot_cold_cmd: "./apps/hot_cold/hot_cold 1024 * 16 1 25"
+wait_before_contend: 60
+wait_after_contend: 60
+stress_duration: 10
+stress_vm_workers: 4
+stress_vm_bytes: "10G"
+stress_extra_args: "--vm-keep --page-in"
+plot_duration: 129
+plot_cmd: "python3 -m numa_mem_plot   --interval 1   --duration 129   --csv experiments/numa_contention_experiment-2026-04-02_23-03-05/memory_usage.csv   --out experiments/numa_contention_experiment-2026-04-02_23-03-05/memory_usage.png"
