@@ -31,10 +31,11 @@ CSV_OUT="${EXP_DIR}/memory_usage.csv"
 PNG_OUT="${EXP_DIR}/memory_usage.png"
 PARAMS_OUT="${EXP_DIR}/experimental_params.yaml"
 
+HOT_COLD_BIN="${HOT_COLD_BIN:-./apps/hot_cold/hot_cold}"
 HOT_COLD_MEM_MB="${HOT_COLD_MEM_MB:-1024}"
 SLOW_NUMA_NODE="${SLOW_NUMA_NODE:-1}"
 HOT_COLD_TOUCH_PERCENT="${HOT_COLD_TOUCH_PERCENT:-25}"
-HOT_COLD_CMD="${HOT_COLD_CMD:-./apps/hot_cold/hot_cold ${HOT_COLD_MEM_MB} ${SLOW_NUMA_NODE} ${HOT_COLD_TOUCH_PERCENT}}"
+HOT_COLD_CMD="${HOT_COLD_CMD:-${HOT_COLD_BIN} ${HOT_COLD_MEM_MB} ${SLOW_NUMA_NODE} ${HOT_COLD_TOUCH_PERCENT}}"
 
 WAIT_BEFORE_CONTEND="${WAIT_BEFORE_CONTEND:-60}"
 WAIT_AFTER_CONTEND="${WAIT_AFTER_CONTEND:-60}"
@@ -102,6 +103,12 @@ EOF
 
 if ! command -v python3 >/dev/null 2>&1; then
   echo "[error] python3 is not installed. Install Python and rerun the experiment."
+  exit 1
+fi
+
+if [[ ! -x "${HOT_COLD_BIN}" ]]; then
+  echo "[error] hot_cold binary not found or not executable at '${HOT_COLD_BIN}'." >&2
+  echo "[error] build it first, for example: make -C apps/hot_cold" >&2
   exit 1
 fi
 
